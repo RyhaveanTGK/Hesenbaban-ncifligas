@@ -236,40 +236,111 @@ export function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** Handles the Accept / Reject inline buttons coming back from Telegram. */
+// Bütün deposits.server.ts faylında sadəcə bu funksiyonu əvəz et:
+
 export async function handleDepositCallback(data: string, chatId: number, messageId: number) {
-  const [, action, depositId] = data.split(":");
-  if (!depositId || (action !== "ok" && action !== "no")) return "Unknown action";
+  console.log("=== DEPOSIT CALLBACK START ===");
+  console.log("Raw callback data:", data);
+  console.log("Chat ID:", chatId);
+  console.log("Message ID:", messageId);
+  
+  const parts = data.split(":");
+  console.log("Split parts:", parts);
+  
+  const action = parts[1];
+  const depositId = parts[2];
+  
+  console.log("Extracted action:", action);
+  console.log("Extracted depositId:", depositId);
+  console.log("Deposit ID length:", depositId?.length);
+  
+  // Validation
+  if (!depositId || (action !== "ok" && action !== "no")) {
+    console.error("❌ VALIDATION FAILED");
+    console.error("Missing depositId:", !depositId);
+    console.error("Invalid action:", action);
+    return "Unknown action";
+  }
+  
+  console.log("✅ Validation passed");
 
+  // Get store
   const store = await getDepositStore();
+  console.log("✅ Store retrieved");
+  
+  // Find deposit
+  console.log(`🔍 Searching for deposit with ID: "${depositId}"`);
   const deposit = await store.find(depositId);
-  if (!deposit) return "Deposit not found";
-  if (deposit.status !== "pending") return "Already processed";
+  console.log("Deposit found:", deposit);
+  
+  if (!deposit) {
+    console.error(`❌ DEPOSIT NOT FOUND: "${depositId}"`);
+    console.error("This means the deposit was not saved to the database");
+    return "Deposit not found";
+  }
+  
+  console.log("✅ Deposit found in database");
+  console.log("Current deposit status:", deposit.status);
+  
+  // Check if already processed
+  if (deposit.status !== "pending") {
+    console.error("❌ DEPOSIT ALREADY PROCESSED");
+    console.error("Status:", deposit.status);
+    return "Already processed";
+  }
+  
+  console.log("✅ Deposit is pending - proceeding with action");
 
+  // Handle approval/rejection
   if (action === "ok") {
-    const { getStore } = await import("./db.server");
-    const users = await getStore();
-    await users.addBalance(deposit.userId, deposit.amount);
-    await store.update(depositId, { status: "approved" });
+    console.log("📥 Processing APPROVAL");
+    console.log("Adding balance for user:", deposit.userId);
+    console.log("Amount:", deposit.amount);
+    
+    try {
+      const { getStore } = await import("./db.server");
+      const users = await getStore();
+      console.log("✅ User store retrieved");
+      
+      await users.addBalance(deposit.userId, deposit.amount);
+      console.log("✅ Balance added successfully");
+      
+      await store.update(depositId, { status: "approved" });
+      console.log("✅ Deposit status updated to 'approved'");
+    } catch (err) {
+      console.error("❌ Error adding balance:", err);
+      throw err;
+    }
   } else {
+    console.log("❌ Processing REJECTION");
     await store.update(depositId, { status: "rejected" });
+    console.log("✅ Deposit status updated to 'rejected'");
   }
 
+  // Update Telegram message
+  console.log("📤 Sending Telegram update");
   const suffix = action === "ok" ? "\n\n✅ Qəbul edildi" : "\n\n❌ Rədd edildi";
-  await telegramCall("editMessageCaption", {
-    chat_id: chatId,
-    message_id: messageId,
-    parse_mode: "HTML",
-    caption:
-      `<b>DEPOSIT</b>\n` +
-      `Bank: <b>${escapeHtml(deposit.bank)}</b>\n` +
-      `Amount: <b>${deposit.amount.toFixed(2)} GEL</b>\n` +
-      `User ID: <code>${escapeHtml(deposit.userId)}</code>\n` +
-      `Date: ${new Date(deposit.createdAt).toLocaleDateString("en-GB", { timeZone: "Asia/Tbilisi" })}\n` +
-      `Time: ${new Date(deposit.createdAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Tbilisi", hour12: false })}` +
-      suffix,
-    reply_markup: { inline_keyboard: [] },
-  }).catch((e) => console.error(e));
+  
+  try {
+    await telegramCall("editMessageCaption", {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "HTML",
+      caption:
+        `<b>DEPOSIT</b>\n` +
+        `Bank: <b>${escapeHtml(deposit.bank)}</b>\n` +
+        `Amount: <b>${deposit.amount.toFixed(2)} GEL</b>\n` +
+        `User ID: <code>${escapeHtml(deposit.userId)}</code>\n` +
+        `Date: ${new Date(deposit.createdAt).toLocaleDateString("en-GB", { timeZone: "Asia/Tbilisi" })}\n` +
+        `Time: ${new Date(deposit.createdAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Tbilisi", hour12: false })}` +
+        suffix,
+      reply_markup: { inline_keyboard: [] },
+    });
+    console.log("✅ Telegram message updated");
+  } catch (e) {
+    console.error("❌ Error updating Telegram message:", e);
+  }
 
+  console.log("=== DEPOSIT CALLBACK END ===");
   return action === "ok" ? "Qəbul edildi" : "Rədd edildi";
 }
