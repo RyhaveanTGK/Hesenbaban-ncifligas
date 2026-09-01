@@ -201,14 +201,19 @@ export async function submitDeposit(input: {
   // instance, so the record must already exist when the buttons are pressed.
   await store.insert(deposit);
 
+  // The user id and amount travel inside callback_data so the Accept / Reject
+  // buttons keep working even if the stored record cannot be found later
+  // (different server instance, restart, or a reset database).
+  const payload = `${deposit.id}:${deposit.userId}:${deposit.amount.toFixed(2)}`;
   const markup = {
     inline_keyboard: [
       [
-        { text: "\u2705 Q\u0259bul et", callback_data: `dep:ok:${deposit.id}` },
-        { text: "\u274c R\u0259dd et", callback_data: `dep:no:${deposit.id}` },
+        { text: "\u2705 Q\u0259bul et", callback_data: `dep:ok:${payload}` },
+        { text: "\u274c R\u0259dd et", callback_data: `dep:no:${payload}` },
       ],
     ],
   };
+
 
   const form = new FormData();
   form.append("chat_id", String(chatId));
@@ -256,16 +261,21 @@ function depositCaption(d: DepositDoc, suffix = "") {
  * was reset). This guarantees the Accept / Reject buttons always work.
  */
 function depositFromCaption(id: string, caption: string, chatId: number): DepositDoc | null {
-  const bank = /Bank:\s*(.+)/.exec(caption)?.[1]?.trim();
-  const amount = Number(/Amount:\s*([\d.]+)/.exec(caption)?.[1]);
-  const userId = /User ID:\s*(\S+)/.exec(caption)?.[1]?.trim();
-  const username = /Username:\s*(.+)/.exec(caption)?.[1]?.trim() ?? "";
-  if (!bank || !userId || !Number.isFinite(amount) || amount <= 0) return null;
+  const plain = caption
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+  const bank = /Bank:\s*(.+)/.exec(plain)?.[1]?.trim();
+  const amount = Number(/Amount:\s*([\d.,]+)/.exec(plain)?.[1]?.replace(",", "."));
+  const userId = /User ID:\s*(\S+)/.exec(plain)?.[1]?.trim();
+  const username = /Username:\s*(.+)/.exec(plain)?.[1]?.trim() ?? "";
+  if (!userId || !Number.isFinite(amount) || amount <= 0) return null;
   return {
     id,
     userId,
     username,
-    bank,
+    bank: bank || "Bank",
     amount,
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -280,28 +290,48 @@ export async function handleDepositCallback(
   messageId: number,
   caption?: string,
 ) {
+  // dep:<ok|no>:<depositId>[:<userId>:<amount>]
   const parts = data.split(":");
   const action = parts[1];
   const depositId = parts[2];
+  const cbUserId = parts[3];
+  const cbAmount = Number(parts[4]);
 
   if (!depositId || (action !== "ok" && action !== "no")) return "Unknown action";
 
   const store = await getDepositStore();
   let deposit = await store.find(depositId);
 
+  // Recovery order: callback payload -> message caption. Either one is enough,
+  // so the buttons never fail with "Deposit not found".
+  if (!deposit && cbUserId && Number.isFinite(cbAmount) && cbAmount > 0) {
+    deposit = {
+      id: depositId,
+      userId: cbUserId,
+      username: caption ? (/Username:\s*(.+)/.exec(caption)?.[1]?.trim() ?? "") : "",
+      bank: caption ? (/Bank:\s*(.+)/.exec(caption)?.[1]?.trim() ?? "Bank") : "Bank",
+      amount: cbAmount,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      chatId,
+    };
+  }
+
   if (!deposit && caption) {
-    const recovered = depositFromCaption(depositId, caption, chatId);
-    if (recovered) {
-      deposit = recovered;
-      try {
-        await store.insert(recovered);
-      } catch {
-        /* already there, ignore */
-      }
+    deposit = depositFromCaption(depositId, caption, chatId);
+  }
+
+  if (deposit) {
+    try {
+      await store.insert(deposit);
+    } catch {
+      /* already stored, ignore */
     }
   }
 
-  if (!deposit) return "Deposit not found";
+  if (!deposit) {
+    return "Bu sorğunun məlumatı tapılmadı. İstifadəçi yenidən deposit göndərsin.";
+  }
 
   if (deposit.status !== "pending") {
     return deposit.status === "approved" ? "Artıq qəbul edilib" : "Artıq rədd edilib";
@@ -311,11 +341,12 @@ export async function handleDepositCallback(
     const { getStore } = await import("./db.server");
     const users = await getStore();
     const updated = await users.addBalance(deposit.userId, deposit.amount);
-    if (!updated) return "İstifadəçi tapılmadı";
+    if (!updated) return `İstifadəçi tapılmadı (ID: ${deposit.userId})`;
     await store.update(depositId, { status: "approved" });
   } else {
     await store.update(depositId, { status: "rejected" });
   }
+
 
   const suffix =
     action === "ok" ? "\n\n\u2705 Q\u0259bul edildi" : "\n\n\u274c R\u0259dd edildi";
