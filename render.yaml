@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cobra-poker
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: cobra_poker
