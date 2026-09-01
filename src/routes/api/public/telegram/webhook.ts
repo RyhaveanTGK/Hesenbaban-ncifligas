@@ -5,7 +5,7 @@ type TgUpdate = {
   callback_query?: {
     id: string;
     data?: string;
-    message?: { chat?: { id: number }; message_id: number };
+    message?: { chat?: { id: number }; message_id: number; text?: string; caption?: string };
   };
 };
 
@@ -25,31 +25,37 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         }
 
         const cb = update.callback_query;
-        if (cb?.data?.startsWith("wd:") && cb.message?.chat?.id) {
-          const { handleWithdrawCallback } = await import("@/lib/withdrawals.server");
+        const cbChatId = cb?.message?.chat?.id;
+
+        if (cb && cb.data && cbChatId) {
+          const source = cb.message?.caption ?? cb.message?.text ?? "";
           let text = "Done";
           try {
-            text = await handleWithdrawCallback(cb.data, cb.message.chat.id, cb.message.message_id);
-          } catch (err) {
-            console.error("Withdraw callback handling failed:", err);
-            text = "Error";
-          }
-          await telegramCall("answerCallbackQuery", { callback_query_id: cb.id, text }).catch((e) =>
-            console.error(e),
-          );
-          return Response.json({ ok: true });
-        }
-        if (cb?.data?.startsWith("dep:") && cb.message?.chat?.id) {
-          let text = "Done";
-          try {
-            text = await handleDepositCallback(cb.data, cb.message.chat.id, cb.message.message_id);
+            if (cb.data.startsWith("wd:")) {
+              const { handleWithdrawCallback } = await import("@/lib/withdrawals.server");
+              text = await handleWithdrawCallback(
+                cb.data,
+                cbChatId,
+                cb.message!.message_id,
+                source,
+              );
+            } else if (cb.data.startsWith("dep:")) {
+              text = await handleDepositCallback(cb.data, cbChatId, cb.message!.message_id, source);
+            } else {
+              text = "Unknown action";
+            }
           } catch (err) {
             console.error("Callback handling failed:", err);
-            text = "Error";
+            text = err instanceof Error ? err.message.slice(0, 190) : "Error";
           }
-          await telegramCall("answerCallbackQuery", { callback_query_id: cb.id, text }).catch(
-            (e) => console.error(e),
-          );
+
+          // Always answer, otherwise Telegram keeps the button spinner running.
+          await telegramCall("answerCallbackQuery", {
+            callback_query_id: cb.id,
+            text,
+            show_alert: false,
+          }).catch((e) => console.error("answerCallbackQuery failed:", e));
+
           return Response.json({ ok: true });
         }
 
@@ -59,7 +65,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           await store.setAdminChatId(chatId);
           await telegramCall("sendMessage", {
             chat_id: chatId,
-            text: "Cobra Poker admin bot is ready. Deposit requests will arrive here.",
+            text: `Cobra Poker admin bot is ready. Chat ID: ${chatId}\nDeposit and withdrawal requests will arrive here.`,
           }).catch((e) => console.error(e));
         }
 
