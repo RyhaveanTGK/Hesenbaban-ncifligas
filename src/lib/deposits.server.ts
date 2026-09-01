@@ -3,9 +3,9 @@
  *
  * Uses MongoDB when MONGODB_URI is configured, otherwise an in-memory map so
  * the flow keeps working in preview.
+ * 
+ * NOW: Uses Telegram Bot API directly (no Lovable gateway needed)
  */
-
-const GATEWAY = "https://connector-gateway.lovable.dev/telegram";
 
 export type DepositStatus = "pending" | "approved" | "rejected";
 
@@ -108,20 +108,24 @@ export function getDepositStore(): Promise<DepositStore> {
   return cached;
 }
 
-function tgHeaders() {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
-  const telegramKey = process.env["TELEGRAM_API_KEY"];
-  if (!lovableKey || !telegramKey) throw new Error("Telegram connection is not configured.");
-  return {
-    Authorization: `Bearer ${lovableKey}`,
-    "X-Connection-Api-Key": telegramKey,
-  };
+// Get Telegram Bot API token
+function getTelegramToken(): string {
+  const token = process.env["TELEGRAM_API_KEY"];
+  if (!token) throw new Error("TELEGRAM_API_KEY is not configured.");
+  return token;
+}
+
+// Telegram Bot API base URL
+function getTelegramApiUrl(method: string): string {
+  const token = getTelegramToken();
+  return `https://api.telegram.org/bot${token}/${method}`;
 }
 
 export async function telegramCall(method: string, body: unknown) {
-  const res = await fetch(`${GATEWAY}/${method}`, {
+  const url = getTelegramApiUrl(method);
+  const res = await fetch(url, {
     method: "POST",
-    headers: { ...tgHeaders(), "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const text = await res.text();
@@ -138,9 +142,9 @@ export async function telegramCall(method: string, body: unknown) {
 }
 
 async function telegramSendPhoto(form: FormData) {
-  const res = await fetch(`${GATEWAY}/sendPhoto`, {
+  const url = getTelegramApiUrl("sendPhoto");
+  const res = await fetch(url, {
     method: "POST",
-    headers: tgHeaders(),
     body: form,
   });
   const text = await res.text();
