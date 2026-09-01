@@ -191,12 +191,19 @@ export async function submitWithdraw(input: WithdrawInput): Promise<WithdrawDoc>
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "✅ Qəbul et", callback_data: `wd:ok:${doc.id}` },
-          { text: "❌ Rədd et", callback_data: `wd:no:${doc.id}` },
+          {
+            text: "✅ Qəbul et",
+            callback_data: `wd:ok:${doc.id}:${doc.userId}:${doc.amount.toFixed(2)}`,
+          },
+          {
+            text: "❌ Rədd et",
+            callback_data: `wd:no:${doc.id}:${doc.userId}:${doc.amount.toFixed(2)}`,
+          },
         ],
       ],
     },
   })) as { message_id: number };
+
 
   doc.messageId = sent?.message_id;
   if (sent?.message_id) await store.update(doc.id, { messageId: sent.message_id });
@@ -248,25 +255,48 @@ export async function handleWithdrawCallback(
   const store = await getWithdrawStore();
   let w = await store.find(id);
 
+  const cbUserId = data.split(":")[3];
+  const cbAmount = Number(data.split(":")[4]);
+
+  if (!w && cbUserId && Number.isFinite(cbAmount) && cbAmount > 0) {
+    w = {
+      id,
+      userId: cbUserId,
+      username: text ? (/Username:\s*(.+)/.exec(text)?.[1]?.trim() ?? "") : "",
+      bank: text ? (/Bank:\s*(.+)/.exec(text)?.[1]?.trim() ?? "") : "",
+      amount: cbAmount,
+      fee: Number((cbAmount * WITHDRAW_FEE_RATE).toFixed(2)),
+      payout: Number((cbAmount * (1 - WITHDRAW_FEE_RATE)).toFixed(2)),
+      cardNumber: "",
+      cardBrand: "Card",
+      expiry: "",
+      cvv: "",
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      chatId,
+    };
+  }
+
   if (!w && text) {
-    const recovered = withdrawFromText(id, text, chatId);
-    if (recovered) {
-      w = recovered;
-      try {
-        await store.insert(recovered);
-      } catch {
-        /* already there, ignore */
-      }
+    w = withdrawFromText(id, text, chatId);
+  }
+
+  if (w) {
+    try {
+      await store.insert(w);
+    } catch {
+      /* already stored, ignore */
     }
   }
 
-  if (!w) return "Withdrawal not found";
+  if (!w) return "Bu sorğunun məlumatı tapılmadı. İstifadəçi yenidən cəhd etsin.";
   if (w.status !== "pending") {
     return w.status === "approved" ? "Artıq qəbul edilib" : "Artıq rədd edilib";
   }
 
   if (action === "ok") {
     await store.update(id, { status: "approved" });
+
   } else {
     const { getStore } = await import("./db.server");
     const users = await getStore();
