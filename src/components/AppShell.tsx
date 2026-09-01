@@ -4,7 +4,7 @@ import { Bell, Spade, Users, User, History, BarChart3 } from "lucide-react";
 import logo from "@/assets/cobra-logo.png";
 
 const NAV = [
-  { to: "/dashboard", label: "Play", icon: Spade },
+  { to: "/dashboard", label: "Home", icon: Spade },
   { to: "/rooms", label: "Rooms", icon: Users },
   { to: "/profile", label: "Profile", icon: User },
   { to: "/history", label: "History", icon: History },
