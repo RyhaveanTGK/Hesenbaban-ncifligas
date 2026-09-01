@@ -232,3 +232,23 @@ html[data-animations="off"] *::after {
 @utility game-tint-blue {
   box-shadow: inset 0 0 40px oklch(0.5 0.18 260 / 0.35);
 }
+
+/* Bottom navigation: sits behind the table background, visible but faded */
+@utility nav-faded {
+  opacity: 0.45;
+  filter: blur(0.35px);
+  transition:
+    opacity 0.2s ease,
+    filter 0.2s ease;
+}
+
+.nav-faded:hover,
+.nav-faded[data-status="active"],
+.nav-faded.text-gold {
+  opacity: 0.95;
+  filter: none;
+}
+
+@utility game-tint-gold {
+  box-shadow: inset 0 0 40px oklch(0.72 0.13 75 / 0.3);
+}
