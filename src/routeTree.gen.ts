@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AviatorRouteImport } from './routes/aviator'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
@@ -22,6 +23,11 @@ import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AviatorRoute = AviatorRouteImport.update({
+  id: '/aviator',
+  path: '/aviator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -68,6 +74,7 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/aviator': typeof AviatorRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/aviator': typeof AviatorRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -91,6 +99,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/aviator': typeof AviatorRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/aviator'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/aviator'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/aviator'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AviatorRoute: typeof AviatorRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
   LeaderboardRoute: typeof LeaderboardRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aviator': {
+      id: '/aviator'
+      path: '/aviator'
+      fullPath: '/aviator'
+      preLoaderRoute: typeof AviatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AviatorRoute: AviatorRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
   LeaderboardRoute: LeaderboardRoute,
