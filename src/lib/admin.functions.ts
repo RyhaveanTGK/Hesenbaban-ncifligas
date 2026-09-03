@@ -80,13 +80,15 @@ export const adminAdjustBalance = createServerFn({ method: "POST" })
       const store = await getStore();
       const current = await store.findById(data.userId);
       if (!current) return { ok: false, error: "User not found." };
-      const next = Math.max(0, Number((current.chipBalance + data.delta).toFixed(2)));
-      const updated = await store.setBalance(data.userId, next);
-      return { ok: true, balance: updated?.chipBalance ?? next };
+      // Atomic increment inside the database: no read-modify-write race, never negative.
+      const updated = await store.addBalance(data.userId, data.delta);
+      if (!updated) return { ok: false, error: "User not found." };
+      return { ok: true, balance: updated.chipBalance };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : "Update failed." };
     }
   });
+
 
 export const adminSetBalance = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
