@@ -46,7 +46,7 @@ function ProfilePage() {
     if (!userId) return;
     try {
       const res = await getBalance({ data: { userId } });
-      if (res.balance !== null) setBalance(res.balance);
+      if (typeof res.balance === "number" && Number.isFinite(res.balance)) setBalance(res.balance);
     } catch {
       /* ignore transient errors */
     }
@@ -55,9 +55,17 @@ function ProfilePage() {
   useEffect(() => {
     if (!userId) return;
     void refreshBalance();
-    const t = setInterval(() => void refreshBalance(), 5000);
-    return () => clearInterval(t);
+    const t = setInterval(() => void refreshBalance(), 2000);
+    const onFocus = () => void refreshBalance();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [userId, refreshBalance]);
+
 
   if (!ready || !user) return null;
 
