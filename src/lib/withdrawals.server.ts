@@ -397,7 +397,9 @@ export async function handleWithdrawCallback(
     console.log(`[CALLBACK] Withdrawal marked as rejected: ${id}`);
   }
 
-  await telegramCall("editMessageText", {
+  // Fire and forget - don't await Telegram UI update
+  // This prevents blocking the callback handler for 30+ seconds
+  telegramCall("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
     parse_mode: "HTML",
