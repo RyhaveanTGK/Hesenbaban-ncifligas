@@ -27,7 +27,9 @@ export async function getMongoClient() {
           minPoolSize: 2,
           retryWrites: true,
           maxIdleTimeMS: 30000,
-          socketTimeoutMS: 45000,
+          socketTimeoutMS: 15000,  // Reduce from 45s to 15s (SSR timeout 120s)
+          serverSelectionTimeoutMS: 10000,
+          connectTimeoutMS: 10000,
         });
         
         await client.connect();
