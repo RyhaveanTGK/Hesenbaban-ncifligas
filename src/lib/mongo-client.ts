@@ -8,64 +8,75 @@
  * If MongoDB goes down, the app fails fast rather than silently losing data.
  */
 
-let mongoClientInstance: Promise<any> | null = null;
+let mongoClientInstance: any = null;
 let connectionFailed = false;
+let connectionPromise: Promise<any> | null = null;
 
 export async function getMongoClient() {
-  if (!mongoClientInstance) {
-    const uri = process.env["MONGODB_URI"];
-    if (!uri) {
-      throw new Error("MONGODB_URI is not configured.");
-    }
-
-    mongoClientInstance = (async () => {
-      try {
-        console.log(`[MONGO-CLIENT] Creating singleton MongoDB client...`);
-        const mod = await import(/* @vite-ignore */ "mongodb");
-        const client = new mod.MongoClient(uri, {
-          maxPoolSize: 10,
-          minPoolSize: 2,
-          retryWrites: true,
-          maxIdleTimeMS: 30000,
-          socketTimeoutMS: 15000,  // Reduce from 45s to 15s (SSR timeout 120s)
-          serverSelectionTimeoutMS: 10000,
-          connectTimeoutMS: 10000,
-        });
-        
-        await client.connect();
-        
-        // Test connection
-        await client.db("admin").command({ ping: 1 });
-        console.log(`[MONGO-CLIENT] Connected and verified successfully`);
-        
-        // Listen for connection events
-        client.on("serverClosed", () => {
-          console.error(`[MONGO-CLIENT] Connection closed!`);
-          connectionFailed = true;
-          mongoClientInstance = null;
-        });
-        
-        client.on("error", (error) => {
-          console.error(`[MONGO-CLIENT] Connection error:`, error.message);
-          connectionFailed = true;
-          mongoClientInstance = null;
-        });
-        
-        return client;
-      } catch (error) {
-        console.error(`[MONGO-CLIENT] Connection failed:`, error instanceof Error ? error.message : error);
-        connectionFailed = true;
-        mongoClientInstance = null;
-        throw error;
-      }
-    })();
+  const uri = process.env["MONGODB_URI"];
+  if (!uri) {
+    throw new Error("MONGODB_URI is not configured.");
   }
-  return mongoClientInstance;
+
+  // If already connected, return the instance
+  if (mongoClientInstance) {
+    return mongoClientInstance;
+  }
+
+  // If connection in progress, wait for it
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  // Start new connection
+  connectionPromise = (async () => {
+    try {
+      console.log(`[MONGO-CLIENT] Creating singleton MongoDB client...`);
+      const mod = await import(/* @vite-ignore */ "mongodb");
+      const client = new mod.MongoClient(uri, {
+        maxPoolSize: 10,
+        minPoolSize: 2,
+        retryWrites: true,
+        maxIdleTimeMS: 30000,
+        socketTimeoutMS: 15000,
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+      });
+      
+      await client.connect();
+      console.log(`[MONGO-CLIENT] Connected successfully`);
+      
+      // Test connection with ping
+      const adminDb = client.db("admin");
+      const pingResult = await Promise.race([
+        adminDb.command({ ping: 1 }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Ping timeout")), 5000)
+        ),
+      ]);
+      console.log(`[MONGO-CLIENT] Ping verified successfully`);
+      
+      mongoClientInstance = client;
+      connectionFailed = false;
+      return client;
+    } catch (error) {
+      console.error(
+        `[MONGO-CLIENT] Connection failed:`,
+        error instanceof Error ? error.message : error
+      );
+      connectionFailed = true;
+      connectionPromise = null;
+      throw error;
+    }
+  })();
+
+  return connectionPromise;
 }
 
 export async function getMongoDb() {
   if (connectionFailed) {
-    mongoClientInstance = null; // Reset to retry connection
+    connectionPromise = null; // Reset to retry
+    mongoClientInstance = null;
   }
   
   const client = await getMongoClient();
