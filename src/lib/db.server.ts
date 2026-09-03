@@ -26,6 +26,8 @@ type Store = {
     id: string,
     patch: Partial<Pick<UserDoc, "username" | "email" | "passwordHash">>,
   ): Promise<UserDoc | null>;
+  listAll(): Promise<UserDoc[]>;
+  setBalance(id: string, amount: number): Promise<UserDoc | null>;
 };
 
 
@@ -52,6 +54,15 @@ const memoryStore: Store = {
     const u = memory.find((x) => x.id === id);
     if (!u) return null;
     Object.assign(u, patch);
+    return u;
+  },
+  async listAll() {
+    return [...memory].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  },
+  async setBalance(id, amount) {
+    const u = memory.find((x) => x.id === id);
+    if (!u) return null;
+    u.chipBalance = Number(amount.toFixed(2));
     return u;
   },
 };
@@ -92,6 +103,17 @@ async function createMongoStore(uri: string): Promise<Store> {
     },
     async updateFields(id, patch) {
       await col.updateOne({ id }, { $set: patch });
+      return (await col.findOne({ id })) as UserDoc | null;
+    },
+    async listAll() {
+      return (await col
+        .find({}, { projection: { _id: 0 } })
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .toArray()) as UserDoc[];
+    },
+    async setBalance(id, amount) {
+      await col.updateOne({ id }, { $set: { chipBalance: Number(amount.toFixed(2)) } });
       return (await col.findOne({ id })) as UserDoc | null;
     },
   };
