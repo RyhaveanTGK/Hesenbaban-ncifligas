@@ -71,7 +71,16 @@ async function createMongoWithdrawStore(uri: string): Promise<WithdrawStore> {
 
   return {
     async insert(d) {
-      await col.insertOne({ ...d });
+      try {
+        await col.insertOne({ ...d });
+      } catch (err: any) {
+        // If duplicate key error, it means the document already exists - that's fine
+        if (err.code === 11000 || err.code === 11001) {
+          // Document already exists, silently ignore
+          return;
+        }
+        throw err;
+      }
     },
     async find(id) {
       return (await col.findOne({ id })) as WithdrawDoc | null;
@@ -289,18 +298,28 @@ export async function handleWithdrawCallback(
     }
   }
 
-  if (!w) return "Bu sorğunun məlumatı tapılmadı. İstifadəçi yenidən cəhd etsin.";
+  if (!w) {
+    // This should never happen due to recovery logic above
+    return "Sistem xətası: Withdrawal məlumatı tapıla bilmədi. Lütfən admin ilə əlaqə saxlayın.";
+  }
+  
   if (w.status !== "pending") {
     return w.status === "approved" ? "Artıq qəbul edilib" : "Artıq rədd edilib";
   }
 
   if (action === "ok") {
+    // Mark withdrawal as approved first
     await store.update(id, { status: "approved" });
-
+    // The actual payout is handled outside this system
   } else {
+    // Rejection: refund the amount back to the user
     const { getStore } = await import("./db.server");
     const users = await getStore();
-    await users.addBalance(w.userId, w.amount);
+    const refunded = await users.addBalance(w.userId, w.amount);
+    if (!refunded) {
+      console.error(`Failed to refund balance for user ${w.userId}`);
+      return `Geri ödəmə xətası. Admin ilə əlaqə saxlayın.`;
+    }
     await store.update(id, { status: "rejected" });
   }
 
