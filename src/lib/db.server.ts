@@ -47,7 +47,8 @@ const memoryStore: Store = {
   async addBalance(id, amount) {
     const u = memory.find((x) => x.id === id);
     if (!u) return null;
-    u.chipBalance = Number((u.chipBalance + amount).toFixed(2));
+    const base = Number.isFinite(u.chipBalance) ? u.chipBalance : 0;
+    u.chipBalance = Math.max(0, Number((base + amount).toFixed(2)));
     return u;
   },
   async updateFields(id, patch) {
@@ -62,9 +63,10 @@ const memoryStore: Store = {
   async setBalance(id, amount) {
     const u = memory.find((x) => x.id === id);
     if (!u) return null;
-    u.chipBalance = Number(amount.toFixed(2));
+    u.chipBalance = Math.max(0, Number(Number(amount).toFixed(2)));
     return u;
   },
+
 };
 
 
@@ -77,13 +79,37 @@ async function createMongoStore(uri: string): Promise<Store> {
   await col.createIndex({ email: 1 }, { unique: true });
   await col.createIndex({ username: 1 }, { unique: true });
 
+  /** Coerce legacy/missing numeric fields so the UI never sees NaN/undefined. */
+  const clean = (doc: any): UserDoc | null => {
+    if (!doc) return null;
+    const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    return {
+      ...doc,
+      chipBalance: Math.max(0, Number(n(doc.chipBalance).toFixed(2))),
+      totalGames: n(doc.totalGames),
+      wins: n(doc.wins),
+      highestWin: n(doc.highestWin),
+    } as UserDoc;
+  };
+
+  /** Atomic, rounded, never-negative balance write done fully inside MongoDB. */
+  const applyBalance = async (id: string, expr: any): Promise<UserDoc | null> => {
+    const res = await col.findOneAndUpdate(
+      { id },
+      [{ $set: { chipBalance: { $max: [0, { $round: [expr, 2] }] } } }],
+      { returnDocument: "after", projection: { _id: 0 } },
+    );
+    // Driver versions differ: some return the doc directly, some wrap it in { value }.
+    return clean((res as any)?.value ?? res);
+  };
+
   return {
     async findByLogin(login) {
       const rx = new RegExp(`^${login.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-      return (await col.findOne({ $or: [{ email: rx }, { username: rx }] })) as UserDoc | null;
+      return clean(await col.findOne({ $or: [{ email: rx }, { username: rx }] }));
     },
     async findById(id) {
-      return (await col.findOne({ id })) as UserDoc | null;
+      return clean(await col.findOne({ id }, { projection: { _id: 0 } }));
     },
     async insert(user) {
       try {
@@ -98,27 +124,27 @@ async function createMongoStore(uri: string): Promise<Store> {
       }
     },
     async addBalance(id, amount) {
-      await col.updateOne({ id }, { $inc: { chipBalance: amount } });
-      return (await col.findOne({ id })) as UserDoc | null;
+      return applyBalance(id, { $add: [{ $ifNull: ["$chipBalance", 0] }, amount] });
     },
     async updateFields(id, patch) {
       await col.updateOne({ id }, { $set: patch });
-      return (await col.findOne({ id })) as UserDoc | null;
+      return clean(await col.findOne({ id }, { projection: { _id: 0 } }));
     },
     async listAll() {
-      return (await col
+      const docs = (await col
         .find({}, { projection: { _id: 0 } })
         .sort({ createdAt: -1 })
         .limit(500)
-        .toArray()) as UserDoc[];
+        .toArray()) as any[];
+      return docs.map((d) => clean(d)!) as UserDoc[];
     },
     async setBalance(id, amount) {
-      await col.updateOne({ id }, { $set: { chipBalance: Number(amount.toFixed(2)) } });
-      return (await col.findOne({ id })) as UserDoc | null;
+      return applyBalance(id, { $literal: Number(amount) });
     },
   };
 
 }
+
 
 export function getStore(): Promise<Store> {
   if (!cached) {
