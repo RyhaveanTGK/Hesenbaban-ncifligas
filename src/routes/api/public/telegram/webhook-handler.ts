@@ -78,31 +78,36 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
 
           let text = "Processing...";
           
-          try {
-            if (cbData.startsWith("wd:")) {
-              console.log(`[WEBHOOK] Handling withdrawal callback`);
-              const { handleWithdrawCallback } = await import("@/lib/withdrawals.server");
-              text = await handleWithdrawCallback(cbData, cbChatId, cbMessageId, source);
-              console.log(`[WEBHOOK] Withdrawal callback result: ${text}`);
-            } else if (cbData.startsWith("dep:")) {
-              console.log(`[WEBHOOK] Handling deposit callback`);
-              text = await handleDepositCallback(cbData, cbChatId, cbMessageId, source);
-              console.log(`[WEBHOOK] Deposit callback result: ${text}`);
-            } else {
-              console.warn(`[WEBHOOK] Unknown callback data prefix: ${cbData.substring(0, 10)}`);
-              text = "Unknown action";
+          // Start background processing - DON'T AWAIT (fire and forget)
+          // This ensures we respond to Telegram quickly (< 5s)
+          // even if MongoDB is slow
+          (async () => {
+            try {
+              if (cbData.startsWith("wd:")) {
+                console.log(`[WEBHOOK] Handling withdrawal callback (background)`);
+                const { handleWithdrawCallback } = await import("@/lib/withdrawals.server");
+                text = await handleWithdrawCallback(cbData, cbChatId, cbMessageId, source);
+                console.log(`[WEBHOOK] Withdrawal callback result: ${text}`);
+              } else if (cbData.startsWith("dep:")) {
+                console.log(`[WEBHOOK] Handling deposit callback (background)`);
+                text = await handleDepositCallback(cbData, cbChatId, cbMessageId, source);
+                console.log(`[WEBHOOK] Deposit callback result: ${text}`);
+              } else {
+                console.warn(`[WEBHOOK] Unknown callback data prefix: ${cbData.substring(0, 10)}`);
+                text = "Unknown action";
+              }
+            } catch (err) {
+              console.error(`[WEBHOOK] Callback handling error:`, err);
+              text = err instanceof Error ? err.message.slice(0, 190) : "Error occurred";
             }
-          } catch (err) {
-            console.error(`[WEBHOOK] Callback handling error:`, err);
-            text = err instanceof Error ? err.message.slice(0, 190) : "Error occurred";
-          }
+          })().catch((e) => console.error("[WEBHOOK] Background processing error:", e));
 
-          // ALWAYS answer callback query
+          // ALWAYS answer callback query immediately (< 5s)
           try {
             console.log(`[WEBHOOK] Answering callback query: ${cbId}`);
             await telegramCall("answerCallbackQuery", {
               callback_query_id: cbId,
-              text: text,
+              text: "Processing...",  // Don't wait for actual result
               show_alert: false,
             });
             console.log(`[WEBHOOK] Callback query answered successfully`);
