@@ -69,14 +69,11 @@ let cached: Promise<DepositStore> | null = null;
 
 async function createMongoDepositStore(uri: string): Promise<DepositStore> {
   console.log(`[MONGO] Connecting to MongoDB...`);
-  const mod = await import(/* @vite-ignore */ "mongodb");
-  const client = new mod.MongoClient(uri);
-  await client.connect();
-  console.log(`[MONGO] Connected successfully`);
-  
-  const db = client.db(process.env["MONGODB_DB"] || "cobra_poker");
+  const { getMongoDb } = await import("./mongo-client");
+  const db = await getMongoDb();
   const col = db.collection("deposits");
   const cfg = db.collection("config");
+  console.log(`[MONGO] Connected successfully`);
   await col.createIndex({ id: 1 }, { unique: true });
 
   return {
@@ -160,12 +157,14 @@ export function getDepositStore(): Promise<DepositStore> {
     const uri = process.env["MONGODB_URI"];
     console.log(`[STORE] Getting deposit store - MONGODB_URI: ${uri ? 'SET' : 'NOT SET'}`);
     
-    cached = uri
-      ? createMongoDepositStore(uri).catch((err) => {
-          console.error("[STORE] MongoDB connection failed, falling back to memory:", err.message);
-          return memoryStore;
-        })
-      : Promise.resolve(memoryStore);
+    if (!uri) {
+      console.log("[STORE] No MONGODB_URI - using memory store (dev mode)");
+      cached = Promise.resolve(memoryStore);
+    } else {
+      console.log("[STORE] MONGODB_URI set - production mode (NO fallback to memory)");
+      // In production, fail fast if MongoDB is unavailable
+      cached = createMongoDepositStore(uri);
+    }
   }
   return cached;
 }
