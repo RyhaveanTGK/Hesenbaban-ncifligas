@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { WITHDRAW_FEE_RATE, WITHDRAW_MIN, WITHDRAW_MAX } from "./withdrawals.server";
 
-export const WITHDRAW_FEE_RATE = 0.25;
-export const WITHDRAW_MIN = 5;
-export const WITHDRAW_MAX = 10000;
+export { WITHDRAW_FEE_RATE, WITHDRAW_MIN, WITHDRAW_MAX };
 
 const withdrawSchema = z.object({
   userId: z.string().min(1),
