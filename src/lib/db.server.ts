@@ -79,7 +79,16 @@ async function createMongoStore(uri: string): Promise<Store> {
       return (await col.findOne({ id })) as UserDoc | null;
     },
     async insert(user) {
-      await col.insertOne({ ...user });
+      try {
+        await col.insertOne({ ...user });
+      } catch (err: any) {
+        if (err.code === 11000 || err.code === 11001) {
+          console.log(`[MONGO] Duplicate key ignored for user: ${user.id} (already exists)`);
+          return;
+        }
+        console.error(`[MONGO] Insert error for ${user.id}:`, err.message);
+        throw err;
+      }
     },
     async addBalance(id, amount) {
       await col.updateOne({ id }, { $inc: { chipBalance: amount } });
