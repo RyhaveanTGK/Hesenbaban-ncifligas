@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AviatorRouteImport } from './routes/aviator'
+import { Route as BlackjackRouteImport } from './routes/blackjack'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
@@ -19,15 +21,26 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RoomsRouteImport } from './routes/rooms'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
+import { Route as ApiPublicTelegramWebhookHandlerRouteImport } from './routes/api/public/telegram/webhook-handler'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AviatorRoute = AviatorRouteImport.update({
   id: '/aviator',
   path: '/aviator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlackjackRoute = BlackjackRouteImport.update({
+  id: '/blackjack',
+  path: '/blackjack',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -71,10 +84,18 @@ const ApiPublicTelegramWebhookRoute =
     path: '/api/public/telegram/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTelegramWebhookHandlerRoute =
+  ApiPublicTelegramWebhookHandlerRouteImport.update({
+    id: '/api/public/telegram/webhook-handler',
+    path: '/api/public/telegram/webhook-handler',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/aviator': typeof AviatorRoute
+  '/blackjack': typeof BlackjackRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -83,10 +104,13 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/aviator': typeof AviatorRoute
+  '/blackjack': typeof BlackjackRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -95,11 +119,14 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/aviator': typeof AviatorRoute
+  '/blackjack': typeof BlackjackRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -108,12 +135,15 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/aviator'
+    | '/blackjack'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -122,10 +152,13 @@ export interface FileRouteTypes {
     | '/register'
     | '/rooms'
     | '/api/public/telegram/webhook'
+    | '/api/public/telegram/webhook-handler'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/aviator'
+    | '/blackjack'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -134,10 +167,13 @@ export interface FileRouteTypes {
     | '/register'
     | '/rooms'
     | '/api/public/telegram/webhook'
+    | '/api/public/telegram/webhook-handler'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/aviator'
+    | '/blackjack'
     | '/dashboard'
     | '/history'
     | '/leaderboard'
@@ -146,11 +182,14 @@ export interface FileRouteTypes {
     | '/register'
     | '/rooms'
     | '/api/public/telegram/webhook'
+    | '/api/public/telegram/webhook-handler'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AviatorRoute: typeof AviatorRoute
+  BlackjackRoute: typeof BlackjackRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
   LeaderboardRoute: typeof LeaderboardRoute
@@ -159,6 +198,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   RoomsRoute: typeof RoomsRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
+  ApiPublicTelegramWebhookHandlerRoute: typeof ApiPublicTelegramWebhookHandlerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -170,11 +210,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/aviator': {
       id: '/aviator'
       path: '/aviator'
       fullPath: '/aviator'
       preLoaderRoute: typeof AviatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blackjack': {
+      id: '/blackjack'
+      path: '/blackjack'
+      fullPath: '/blackjack'
+      preLoaderRoute: typeof BlackjackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -233,12 +287,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelegramWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/telegram/webhook-handler': {
+      id: '/api/public/telegram/webhook-handler'
+      path: '/api/public/telegram/webhook-handler'
+      fullPath: '/api/public/telegram/webhook-handler'
+      preLoaderRoute: typeof ApiPublicTelegramWebhookHandlerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AviatorRoute: AviatorRoute,
+  BlackjackRoute: BlackjackRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
   LeaderboardRoute: LeaderboardRoute,
@@ -247,6 +310,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   RoomsRoute: RoomsRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
+  ApiPublicTelegramWebhookHandlerRoute: ApiPublicTelegramWebhookHandlerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
