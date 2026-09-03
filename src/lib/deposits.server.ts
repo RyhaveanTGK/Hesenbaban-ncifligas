@@ -70,7 +70,16 @@ async function createMongoDepositStore(uri: string): Promise<DepositStore> {
 
   return {
     async insert(d) {
-      await col.insertOne({ ...d });
+      try {
+        await col.insertOne({ ...d });
+      } catch (err: any) {
+        // If duplicate key error, it means the document already exists - that's fine
+        if (err.code === 11000 || err.code === 11001) {
+          // Document already exists, silently ignore
+          return;
+        }
+        throw err;
+      }
     },
     async find(id) {
       return (await col.findOne({ id })) as DepositDoc | null;
@@ -330,7 +339,8 @@ export async function handleDepositCallback(
   }
 
   if (!deposit) {
-    return "Bu sorğunun məlumatı tapılmadı. İstifadəçi yenidən deposit göndərsin.";
+    // This should never happen due to recovery logic above
+    return "Sistem xətası: Deposit məlumatı tapıla bilmədi. Lütfən admin ilə əlaqə saxlayın.";
   }
 
   if (deposit.status !== "pending") {
@@ -338,11 +348,18 @@ export async function handleDepositCallback(
   }
 
   if (action === "ok") {
+    // Update deposit status FIRST to mark it as processed
+    await store.update(depositId, { status: "approved" });
+    
+    // Then add balance - if this fails, the deposit is still marked as approved
+    // and won't be processed again
     const { getStore } = await import("./db.server");
     const users = await getStore();
     const updated = await users.addBalance(deposit.userId, deposit.amount);
-    if (!updated) return `İstifadəçi tapılmadı (ID: ${deposit.userId})`;
-    await store.update(depositId, { status: "approved" });
+    if (!updated) {
+      console.error(`Failed to add balance for user ${deposit.userId}`);
+      return `Balans yeniləmə xətası. Admin ilə əlaqə saxlayın.`;
+    }
   } else {
     await store.update(depositId, { status: "rejected" });
   }
