@@ -69,13 +69,10 @@ let cached: Promise<WithdrawStore> | null = null;
 
 async function createMongoWithdrawStore(uri: string): Promise<WithdrawStore> {
   console.log(`[MONGO] Connecting to MongoDB for withdrawals...`);
-  const mod = await import(/* @vite-ignore */ "mongodb");
-  const client = new mod.MongoClient(uri);
-  await client.connect();
-  console.log(`[MONGO] Connected successfully for withdrawals`);
-  
-  const db = client.db(process.env["MONGODB_DB"] || "cobra_poker");
+  const { getMongoDb } = await import("./mongo-client");
+  const db = await getMongoDb();
   const col = db.collection("withdrawals");
+  console.log(`[MONGO] Connected successfully for withdrawals`);
   await col.createIndex({ id: 1 }, { unique: true });
   await col.createIndex({ userId: 1, createdAt: -1 });
 
@@ -139,12 +136,14 @@ export function getWithdrawStore(): Promise<WithdrawStore> {
     const uri = process.env["MONGODB_URI"];
     console.log(`[STORE] Getting withdrawal store - MONGODB_URI: ${uri ? 'SET' : 'NOT SET'}`);
     
-    cached = uri
-      ? createMongoWithdrawStore(uri).catch((err) => {
-          console.error("[STORE] MongoDB connection failed, falling back to memory:", err.message);
-          return memoryStore;
-        })
-      : Promise.resolve(memoryStore);
+    if (!uri) {
+      console.log("[STORE] No MONGODB_URI - using memory store (dev mode)");
+      cached = Promise.resolve(memoryStore);
+    } else {
+      console.log("[STORE] MONGODB_URI set - production mode (NO fallback to memory)");
+      // In production, fail fast if MongoDB is unavailable
+      cached = createMongoWithdrawStore(uri);
+    }
   }
   return cached;
 }
