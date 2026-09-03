@@ -60,13 +60,9 @@ const memoryStore: Store = {
 let cached: Promise<Store> | null = null;
 
 async function createMongoStore(uri: string): Promise<Store> {
-  // @vite-ignore keeps the native driver out of the edge bundle; on Render
-  // (Node runtime) it resolves normally from node_modules.
-  const mod = await import(/* @vite-ignore */ "mongodb");
-  const client = new mod.MongoClient(uri);
-  await client.connect();
-  const dbName = process.env["MONGODB_DB"] || "cobra_poker";
-  const col = client.db(dbName).collection("users");
+  const { getMongoDb } = await import("./mongo-client");
+  const db = await getMongoDb();
+  const col = db.collection("users");
   await col.createIndex({ email: 1 }, { unique: true });
   await col.createIndex({ username: 1 }, { unique: true });
 
@@ -105,12 +101,14 @@ async function createMongoStore(uri: string): Promise<Store> {
 export function getStore(): Promise<Store> {
   if (!cached) {
     const uri = process.env["MONGODB_URI"];
-    cached = uri
-      ? createMongoStore(uri).catch((err) => {
-          console.error("MongoDB connection failed, falling back to memory store:", err);
-          return memoryStore;
-        })
-      : Promise.resolve(memoryStore);
+    if (!uri) {
+      console.log("[STORE] No MONGODB_URI - using memory store (dev mode)");
+      cached = Promise.resolve(memoryStore);
+    } else {
+      console.log("[STORE] MONGODB_URI set - production mode (NO fallback to memory)");
+      // In production, fail fast if MongoDB is unavailable
+      cached = createMongoStore(uri);
+    }
   }
   return cached;
 }
