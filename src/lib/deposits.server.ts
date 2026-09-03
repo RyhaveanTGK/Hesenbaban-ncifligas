@@ -461,7 +461,9 @@ export async function handleDepositCallback(
   const suffix =
     action === "ok" ? "\n\n\u2705 Q\u0259bul edildi" : "\n\n\u274c R\u0259dd edildi";
 
-  await telegramCall("editMessageCaption", {
+  // Fire and forget - don't await Telegram UI update
+  // This prevents blocking the callback handler for 30+ seconds
+  telegramCall("editMessageCaption", {
     chat_id: chatId,
     message_id: messageId,
     parse_mode: "HTML",
