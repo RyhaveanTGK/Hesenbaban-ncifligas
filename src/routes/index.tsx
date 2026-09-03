@@ -6,6 +6,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { AuthField } from "@/components/AuthField";
 import { loginUser } from "@/lib/auth.functions";
 import { saveUser } from "@/lib/session";
+import { adminLogin } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,6 +38,14 @@ function LoginPage() {
     }
     setLoading(true);
     try {
+      // Admin credentials (from server env) open the admin panel instead.
+      const admin = await adminLogin({ data: { login, password } });
+      if (admin.ok && admin.token) {
+        localStorage.setItem("cobra_admin_token", admin.token);
+        navigate({ to: "/admin" });
+        return;
+      }
+
       const res = await loginUser({ data: { login, password } });
       if (!res.ok || !res.user) {
         toast.error(res.error ?? "Login failed.");
