@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Menu,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/cobra-logo.png";
 import pokerBg from "@/assets/poker-bg.jpg";
+import blackjackTableAsset from "@/assets/cobra-blackjack-table.png.asset.json";
 import { useAuthUser } from "@/lib/session";
 import { playUiSound } from "@/lib/game-settings";
 import {
@@ -103,11 +104,10 @@ function PlayingCard({
   const size = small ? "h-9 w-6 text-[9px]" : "h-12 w-8 text-[11px]";
   return (
     <div
-      className={`bj-card ${size} ${card ? "" : "bj-card-back"}`}
-      style={{ animationDelay: `${index * 110}ms` }}
+      className={`bj-card bj-card-delay-${Math.min(index, 5)} ${size} ${card ? "" : "bj-card-back"}`}
     >
       {card ? (
-        <span className={red ? "text-[#c62828]" : "text-[#111]"}>
+        <span className={red ? "text-card-red" : "text-card-ink"}>
           <span className="block font-bold leading-none">{card.rank}</span>
           <span className="block leading-none">{SUIT_GLYPH[card.suit] ?? "♠"}</span>
         </span>
@@ -141,13 +141,13 @@ function Chip({ amount }: { amount: number }) {
 
 /* ------------------------------------------------------------------ page */
 
-const SEAT_POS = [
-  "left-1 top-[18%]",
-  "left-0 top-[46%]",
-  "left-1/2 bottom-1 -translate-x-1/2",
-  "right-1 top-[46%]",
-  "right-1 top-[18%]",
-  "left-1/2 top-1 -translate-x-1/2",
+const TABLE_SEAT_POS = [
+  "left-[13%] top-[58%]",
+  "left-[27%] top-[68%]",
+  "left-[43%] top-[73%]",
+  "left-[63%] top-[73%]",
+  "left-[79%] top-[68%]",
+  "left-[87%] top-[58%]",
 ] as const;
 
 function BlackjackPage() {
@@ -229,11 +229,7 @@ function BlackjackPage() {
   }, [notice]);
 
   const seconds = state ? Math.ceil(state.phaseMs / 1000) : 0;
-  const self = state?.players.find((p) => p.isSelf) ?? null;
-  const others = useMemo(
-    () => (state ? state.players.filter((p) => !p.isSelf) : []),
-    [state],
-  );
+  const winner = state?.lastWinners[0];
 
   if (!ready || !user) return null;
 
@@ -278,8 +274,8 @@ function BlackjackPage() {
           </div>
         </div>
 
-        {/* felt */}
-        <div className="relative mt-3 h-[420px]">
+        {/* live table */}
+        <div className="relative mt-3">
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-1">
             <span className="rounded-full border border-gold/40 bg-card/80 px-2.5 py-1 text-[11px] text-gold">
               {state?.seatsTaken ?? 0}/{BJ_MAX_SEATS}
@@ -289,104 +285,84 @@ function BlackjackPage() {
             </span>
           </div>
 
-          <div className="bj-felt absolute inset-x-0 bottom-0 top-8">
-            {/* dealer / shoe area */}
-            <div className="absolute left-1/2 top-4 -translate-x-1/2 text-center">
+          <div className="bj-photo-table relative top-8 aspect-[3/2] w-full overflow-hidden">
+            <img
+              src={blackjackTableAsset.url}
+              alt="Cobra Blackjack casino table with six player seats"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+
+            {/* dealer cards arrive from the shoe at the upper-right */}
+            <div className="bj-dealer-hand absolute left-1/2 top-[28%] -translate-x-1/2 text-center">
               <Hand cards={state?.dealer.cards ?? []} count={state?.dealer.cards.length ?? 0} />
-              <span className="mt-1 inline-block rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">
+              <span className="mt-1 inline-block rounded-full bg-table-overlay px-2 py-0.5 text-[10px] text-table-text">
                 Dealer {state?.dealer.total ? state.dealer.total : "—"}
               </span>
             </div>
 
-            <div className="absolute left-1/2 top-1/2 w-[74%] -translate-x-1/2 -translate-y-1/2 text-center">
-              <p className="bj-rules">BLACKJACK PAYS 3 TO 2</p>
-              <p className="bj-rules text-[9px]">Dealer must draw to 16 and stand on 17</p>
-              <p className="bj-rules">INSURANCE PAYS 2 TO 1</p>
-              <p className="mt-2 text-[11px] font-semibold text-white/90">
+            <div className="absolute left-1/2 top-[49%] w-[58%] -translate-x-1/2 text-center">
+              <p className="text-[10px] font-semibold text-table-text drop-shadow-md">
                 {state?.phase === "waiting"
                   ? `Waiting for players (${state.seatsTaken}/2)`
                   : state
                     ? `${state.phase.toUpperCase()} · ${seconds}s`
                     : "Connecting…"}
               </p>
-              {state?.lastWinners.length && state.phase === "payout" ? (
-                <p className="text-[11px] text-gold">
-                  Winner: {state.lastWinners.map((w) => `${w.username} (${w.total})`).join(", ")} ·{" "}
-                  {state.lastWinners[0]!.payout.toFixed(2)} GEL
-                </p>
-              ) : null}
             </div>
 
-            {/* other players */}
-            {others.map((p) => (
-              <div key={p.userId} className={`absolute ${SEAT_POS[p.seat] ?? SEAT_POS[0]}`}>
-                <div
-                  className={`flex items-center gap-1.5 rounded-full border px-2 py-1 ${
-                    p.isTurn ? "border-gold bg-black/80" : "border-white/15 bg-black/60"
-                  }`}
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold/20 text-[10px] font-bold text-gold">
-                    {p.username.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="text-[10px] leading-tight text-white">
-                    {p.username}
-                    <span className="block text-gold">{p.balance.toFixed(2)}</span>
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-1">
-                  {p.hands.map((h, i) => (
-                    <Hand key={i} cards={h.cards} count={h.cardCount} small />
+            {state?.phase === "payout" ? (
+              <div className="bj-winner-banner absolute left-1/2 top-[43%] z-30 -translate-x-1/2 text-center">
+                <p className="font-display text-xs font-bold text-gold">ROUND RESULT</p>
+                <p className="mt-0.5 text-[10px] font-semibold text-table-text">
+                  {winner
+                    ? `${state.lastWinners.map((item) => item.username).join(", ")} won ${winner.payout.toFixed(2)} GEL`
+                    : "House wins · 30% refunded"}
+                </p>
+              </div>
+            ) : null}
+
+            {/* Live players are aligned to the six printed PLAYER positions. */}
+            {state?.players.map((p) => (
+              <div
+                key={p.userId}
+                className={`bj-seat bj-seat-${p.seat} absolute z-20 -translate-x-1/2 -translate-y-1/2 ${TABLE_SEAT_POS[p.seat] ?? TABLE_SEAT_POS[0]}`}
+              >
+                <div className="flex justify-center">
+                  {p.hands.map((hand, handIndex) => (
+                    <div
+                      key={handIndex}
+                      className={`rounded-lg p-0.5 ${p.isTurn && p.activeHand === handIndex ? "ring-2 ring-gold" : ""}`}
+                    >
+                      <Hand cards={hand.cards} count={hand.cardCount} small={!p.isSelf} />
+                    </div>
                   ))}
                   {p.inRound ? (
-                    <span className="rounded-full bg-black/75 px-1.5 py-0.5 text-[10px] text-white">
+                    <span className="ml-1 rounded-full bg-table-overlay px-1.5 py-0.5 text-[9px] font-bold text-table-text">
                       {h_total(p.hands)}
                     </span>
                   ) : null}
                 </div>
+                <div
+                  className={`mx-auto mt-1 flex w-max items-center gap-1 rounded-full border px-1.5 py-0.5 shadow-lg ${
+                    p.isTurn ? "border-gold bg-table-overlay-strong" : "border-table-line bg-table-overlay"
+                  }`}
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gold/20 text-[9px] font-bold text-gold">
+                    {p.username.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="max-w-16 truncate text-[9px] leading-tight text-table-text">
+                    {p.isSelf ? "You" : p.username}
+                    <span className="block text-gold">{p.balance.toFixed(2)} GEL</span>
+                  </span>
+                </div>
+                {state.phase === "payout" && p.result ? (
+                  <p className={`mt-0.5 text-center text-[9px] font-bold ${p.result === "lose" ? "text-danger" : "text-success"}`}>
+                    {p.result === "lose" ? `−${p.bet.toFixed(2)}` : `+${p.payout.toFixed(2)}`} GEL
+                  </p>
+                ) : null}
                 {p.bet > 0 ? <Chip amount={p.bet} /> : null}
               </div>
             ))}
-
-            {/* you */}
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-center">
-              {self ? (
-                <>
-                  <div className="flex items-center justify-center gap-1">
-                    {self.hands.map((h, i) => (
-                      <div
-                        key={i}
-                        className={`rounded-lg p-0.5 ${
-                          self.isTurn && self.activeHand === i ? "ring-2 ring-gold" : ""
-                        }`}
-                      >
-                        <Hand cards={h.cards} count={h.cardCount} />
-                      </div>
-                    ))}
-                    {self.inRound ? (
-                      <span className="rounded-full bg-black/75 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                        {h_total(self.hands)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div
-                    className={`mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 ${
-                      self.isTurn ? "border-gold bg-black/85" : "border-gold/40 bg-black/70"
-                    }`}
-                  >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold/20 text-[10px] font-bold text-gold">
-                      {user.username.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="text-[10px] leading-tight text-white">
-                      You
-                      <span className="block text-gold">
-                        {(state?.you?.balance ?? user.chipBalance).toFixed(2)}
-                      </span>
-                    </span>
-                  </div>
-                  {self.bet > 0 ? <Chip amount={self.bet} /> : null}
-                </>
-              ) : null}
-            </div>
           </div>
         </div>
 
