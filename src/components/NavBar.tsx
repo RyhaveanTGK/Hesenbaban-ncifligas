@@ -1,92 +1,53 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import navBar from "@/assets/nav-bar.png";
+import navBar from "@/assets/nav-bar-new.png";
 
 /**
  * Bottom navigation rendered exactly as the provided artwork.
+ * The bar is always visible (no hide on scroll) and each item gets its
+ * own left-to-right gold shine, same feel as the game titles on Home.
+ *
  * Tap zones are aligned to the icons printed on the image:
  * Play, Bonus, the cobra medallion (Profile), History, Leaderboard.
  */
 const ZONES = [
-  { to: "/dashboard", label: "Play", left: "1%", width: "20%" },
-  { to: "/rooms", label: "Bonus", left: "21%", width: "18%" },
-  { to: "/profile", label: "Profile", left: "39%", width: "22%" },
-  { to: "/history", label: "History", left: "61%", width: "18%" },
-  { to: "/leaderboard", label: "Leaderboard", left: "79%", width: "20%" },
+  { to: "/dashboard", label: "Play", left: "3%", width: "14%", delay: "0s", round: false },
+  { to: "/rooms", label: "Bonus", left: "21%", width: "16%", delay: "0.45s", round: false },
+  { to: "/profile", label: "Profile", left: "41%", width: "18%", delay: "0.9s", round: true },
+  { to: "/history", label: "History", left: "62%", width: "16%", delay: "1.35s", round: false },
+  { to: "/leaderboard", label: "Leaderboard", left: "80%", width: "17%", delay: "1.8s", round: false },
 ] as const;
 
 export function NavBar() {
-  const [hidden, setHidden] = useState(false);
-  const lastY = useRef(0);
-
-  useEffect(() => {
-    lastY.current = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY;
-      const delta = y - lastY.current;
-      if (Math.abs(delta) > 6) {
-        setHidden(delta > 0 && y > 48);
-        lastY.current = y;
-      }
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-30 transition-transform duration-300 ease-out"
-      style={{ transform: hidden ? "translateY(115%)" : "translateY(0)" }}
-    >
+    <nav className="fixed inset-x-0 bottom-0 z-30">
       <div className="relative mx-auto w-full max-w-md">
-        <div className="nav-glass absolute inset-x-2 inset-y-[14%] rounded-3xl" />
+        {/* soft blur behind the bar, no black panel */}
+        <div className="nav-blur pointer-events-none absolute inset-x-2 inset-y-[26%] rounded-3xl" />
+
         <img
           src={navBar}
           alt=""
           aria-hidden="true"
-          className="relative block h-auto w-full mix-blend-screen"
+          className="relative block h-auto w-full"
         />
-        <svg
-          aria-hidden="true"
-          className="nav-outline pointer-events-none absolute inset-x-2 inset-y-[14%] h-auto"
-          viewBox="0 0 400 100"
-          preserveAspectRatio="none"
-          style={{ height: "72%" }}
-        >
-          <rect
-            x="1"
-            y="1"
-            width="398"
-            height="98"
-            rx="22"
-            ry="22"
-            fill="none"
-            stroke="var(--gold-2)"
-            strokeWidth="1.5"
-            opacity="0.28"
-            vectorEffect="non-scaling-stroke"
+
+        {ZONES.map((z) => (
+          <span
+            key={`shine-${z.label}`}
+            aria-hidden="true"
+            className={`nav-shine pointer-events-none absolute top-[30%] h-[42%] ${
+              z.round ? "rounded-full" : "rounded-xl"
+            }`}
+            style={{ left: z.left, width: z.width, animationDelay: z.delay }}
           />
-          <rect
-            className="nav-outline-run"
-            x="1"
-            y="1"
-            width="398"
-            height="98"
-            rx="22"
-            ry="22"
-            fill="none"
-            stroke="var(--gold-2)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+        ))}
+
         {ZONES.map((z) => (
           <Link
             key={z.to}
             to={z.to}
             aria-label={z.label}
-            className="absolute top-[25%] h-[50%]"
+            className="absolute top-[28%] h-[44%]"
             style={{ left: z.left, width: z.width }}
           />
         ))}
