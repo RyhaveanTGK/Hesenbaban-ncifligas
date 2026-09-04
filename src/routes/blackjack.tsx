@@ -101,7 +101,7 @@ function PlayingCard({
   small?: boolean | undefined;
 }) {
   const red = card?.suit === "H" || card?.suit === "D";
-  const size = small ? "h-9 w-6 text-[9px]" : "h-12 w-8 text-[11px]";
+  const size = small ? "h-8 w-[21px] text-[8px]" : "h-10 w-7 text-[10px]";
   return (
     <div
       className={`bj-card bj-card-delay-${Math.min(index, 5)} ${size} ${card ? "" : "bj-card-back"}`}
@@ -127,7 +127,7 @@ function Hand({
 }) {
   const items = cards ?? Array.from({ length: count }, () => null);
   return (
-    <div className="flex -space-x-2">
+    <div className="flex -space-x-2.5">
       {items.map((c, i) => (
         <PlayingCard key={i} card={c} index={i} small={small} />
       ))}
@@ -142,12 +142,12 @@ function Chip({ amount }: { amount: number }) {
 /* ------------------------------------------------------------------ page */
 
 const TABLE_SEAT_POS = [
-  "left-[13%] top-[58%]",
-  "left-[27%] top-[68%]",
-  "left-[43%] top-[73%]",
-  "left-[63%] top-[73%]",
-  "left-[79%] top-[68%]",
-  "left-[87%] top-[58%]",
+  "left-[16%] top-[63%]",
+  "left-[29%] top-[72%]",
+  "left-[42%] top-[77%]",
+  "left-[58%] top-[77%]",
+  "left-[71%] top-[72%]",
+  "left-[84%] top-[63%]",
 ] as const;
 
 function BlackjackPage() {
@@ -234,13 +234,13 @@ function BlackjackPage() {
   if (!ready || !user) return null;
 
   return (
-    <div className="relative min-h-screen bg-background pb-24">
+    <div className="relative min-h-screen overflow-x-clip bg-background pb-24">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
         <img src={pokerBg} alt="" className="h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-background/80" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-md px-3">
+      <div className="relative z-10 mx-auto w-full max-w-md overflow-x-clip px-3">
         <header className="flex items-center justify-between py-3">
           <Link
             to="/dashboard"
@@ -275,7 +275,7 @@ function BlackjackPage() {
         </div>
 
         {/* live table */}
-        <div className="relative mt-3">
+        <div className="relative mt-3 mb-8">
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-1">
             <span className="rounded-full border border-gold/40 bg-card/80 px-2.5 py-1 text-[11px] text-gold">
               {state?.seatsTaken ?? 0}/{BJ_MAX_SEATS}
@@ -289,19 +289,20 @@ function BlackjackPage() {
             <img
               src={blackjackTableAsset.url}
               alt="Cobra Blackjack casino table with six player seats"
-              className="absolute inset-0 h-full w-full object-cover"
+              className="bj-table-image absolute inset-0 h-full w-full object-cover"
             />
+            <div aria-hidden="true" className="bj-table-light absolute inset-0" />
 
             {/* dealer cards arrive from the shoe at the upper-right */}
-            <div className="bj-dealer-hand absolute left-1/2 top-[28%] -translate-x-1/2 text-center">
+            <div className="bj-dealer-hand absolute left-1/2 top-[27%] z-10 -translate-x-1/2 text-center">
               <Hand cards={state?.dealer.cards ?? []} count={state?.dealer.cards.length ?? 0} />
-              <span className="mt-1 inline-block rounded-full bg-table-overlay px-2 py-0.5 text-[10px] text-table-text">
+              <span className="mt-0.5 inline-block rounded-full bg-table-overlay px-1.5 py-px text-[7px] text-table-text/80">
                 Dealer {state?.dealer.total ? state.dealer.total : "—"}
               </span>
             </div>
 
-            <div className="absolute left-1/2 top-[49%] w-[58%] -translate-x-1/2 text-center">
-              <p className="text-[10px] font-semibold text-table-text drop-shadow-md">
+            <div className="absolute left-1/2 top-[48%] z-10 w-[48%] -translate-x-1/2 text-center">
+              <p className="inline-block rounded-full bg-table-overlay/70 px-2 py-0.5 text-[7px] font-medium text-table-text/85 shadow-sm">
                 {state?.phase === "waiting"
                   ? `Waiting for players (${state.seatsTaken}/2)`
                   : state
@@ -325,38 +326,38 @@ function BlackjackPage() {
             {state?.players.map((p) => (
               <div
                 key={p.userId}
-                className={`bj-seat bj-seat-${p.seat} absolute z-20 -translate-x-1/2 -translate-y-1/2 ${TABLE_SEAT_POS[p.seat] ?? TABLE_SEAT_POS[0]}`}
+                className={`bj-seat bj-seat-${p.seat} absolute z-20 w-[58px] -translate-x-1/2 -translate-y-1/2 text-center ${TABLE_SEAT_POS[p.seat] ?? TABLE_SEAT_POS[0]}`}
               >
-                <div className="flex justify-center">
+                <div className="flex min-h-8 items-end justify-center">
                   {p.hands.map((hand, handIndex) => (
                     <div
                       key={handIndex}
-                      className={`rounded-lg p-0.5 ${p.isTurn && p.activeHand === handIndex ? "ring-2 ring-gold" : ""}`}
+                      className={`rounded-md p-px ${p.isTurn && p.activeHand === handIndex ? "ring-1 ring-gold" : ""}`}
                     >
-                      <Hand cards={hand.cards} count={hand.cardCount} small={!p.isSelf} />
+                      <Hand cards={hand.cards} count={hand.cardCount} small />
                     </div>
                   ))}
                   {p.inRound ? (
-                    <span className="ml-1 rounded-full bg-table-overlay px-1.5 py-0.5 text-[9px] font-bold text-table-text">
+                    <span className="ml-0.5 rounded-full bg-table-overlay px-1 py-px text-[7px] font-bold text-table-text">
                       {h_total(p.hands)}
                     </span>
                   ) : null}
                 </div>
                 <div
-                  className={`mx-auto mt-1 flex w-max items-center gap-1 rounded-full border px-1.5 py-0.5 shadow-lg ${
+                  className={`mx-auto mt-0.5 grid w-[56px] grid-cols-[16px_minmax(0,1fr)] items-center gap-0.5 rounded border px-0.5 py-px shadow-lg ${
                     p.isTurn ? "border-gold bg-table-overlay-strong" : "border-table-line bg-table-overlay"
                   }`}
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gold/20 text-[9px] font-bold text-gold">
-                    {p.username.slice(0, 2).toUpperCase()}
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gold/20 text-[6px] font-bold text-gold">
+                    {p.username.slice(0, 1).toUpperCase()}
                   </span>
-                  <span className="max-w-16 truncate text-[9px] leading-tight text-table-text">
-                    {p.isSelf ? "You" : p.username}
-                    <span className="block text-gold">{p.balance.toFixed(2)} GEL</span>
+                  <span className="min-w-0 truncate text-left text-[6px] leading-[1.15] text-table-text">
+                    <span className="block truncate">{p.isSelf ? "You" : p.username}</span>
+                    <span className="block truncate text-gold">{p.balance.toFixed(2)} GEL</span>
                   </span>
                 </div>
                 {state.phase === "payout" && p.result ? (
-                  <p className={`mt-0.5 text-center text-[9px] font-bold ${p.result === "lose" ? "text-danger" : "text-success"}`}>
+                  <p className={`mt-px truncate text-center text-[7px] font-bold ${p.result === "lose" ? "text-danger" : "text-success"}`}>
                     {p.result === "lose" ? `−${p.bet.toFixed(2)}` : `+${p.payout.toFixed(2)}`} GEL
                   </p>
                 ) : null}
@@ -396,7 +397,7 @@ function BlackjackPage() {
         ) : null}
 
         {/* action buttons */}
-        <div className="mt-3 grid grid-cols-4 gap-2">
+        <div className="mt-3 grid w-full min-w-0 grid-cols-4 gap-1.5 overflow-hidden sm:gap-2">
           <ActionButton
             label="DOUBLE"
             className="border-gold/60 text-gold"
@@ -508,7 +509,7 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl border py-3 text-[12px] font-bold tracking-wide transition-opacity disabled:opacity-35 ${className}`}
+      className={`min-w-0 overflow-hidden rounded-xl border px-1 py-3 text-[10px] font-bold tracking-normal transition-opacity disabled:opacity-35 sm:text-[12px] ${className}`}
     >
       {label}
     </button>
