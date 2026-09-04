@@ -4,11 +4,11 @@ import { EmptyPage } from "@/components/EmptyPage";
 export const Route = createFileRoute("/rooms")({
   head: () => ({
     meta: [
-      { title: "Rooms — Cobra Poker" },
-      { name: "description", content: "Browse Cobra Poker game rooms." },
-      { property: "og:title", content: "Rooms — Cobra Poker" },
-      { property: "og:description", content: "Browse Cobra Poker game rooms." },
+      { title: "Bonus — Cobra Poker" },
+      { name: "description", content: "Cobra Poker bonuses." },
+      { property: "og:title", content: "Bonus — Cobra Poker" },
+      { property: "og:description", content: "Cobra Poker bonuses." },
     ],
   }),
-  component: () => <EmptyPage title="Rooms" />,
+  component: () => <EmptyPage title="Bonus" />,
 });

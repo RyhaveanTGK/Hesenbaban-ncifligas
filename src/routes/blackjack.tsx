@@ -1,19 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  Menu,
-  MessageSquare,
-  Spade,
-  Users,
-  User,
-  History,
-  BarChart3,
-  Send,
-} from "lucide-react";
+import { ArrowLeft, Menu, MessageSquare, Send } from "lucide-react";
+import { NavBar } from "@/components/NavBar";
 import logo from "@/assets/cobra-logo.png";
-import pokerBg from "@/assets/poker-bg.jpg";
-import blackjackTableAsset from "@/assets/cobra-blackjack-table.png.asset.json";
+import appBg from "@/assets/app-bg.png";
+import blackjackTable from "@/assets/cobra-blackjack-table.png";
 import { useAuthUser } from "@/lib/session";
 import { playUiSound } from "@/lib/game-settings";
 import {
@@ -50,14 +41,6 @@ export const Route = createFileRoute("/blackjack")({
   }),
   component: BlackjackPage,
 });
-
-const NAV = [
-  { to: "/dashboard", label: "Play", icon: Spade },
-  { to: "/rooms", label: "Rooms", icon: Users },
-  { to: "/profile", label: "Profile", icon: User },
-  { to: "/history", label: "History", icon: History },
-  { to: "/leaderboard", label: "Leaderboard", icon: BarChart3 },
-] as const;
 
 const SUIT_GLYPH: Record<string, string> = { S: "♠", H: "♥", D: "♦", C: "♣" };
 
@@ -234,10 +217,9 @@ function BlackjackPage() {
   if (!ready || !user) return null;
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-background pb-24">
+    <div className="relative min-h-screen overflow-x-clip bg-background pb-28">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
-        <img src={pokerBg} alt="" className="h-full w-full object-cover opacity-40" />
-        <div className="absolute inset-0 bg-background/80" />
+        <img src={appBg} alt="" className="h-full w-full object-cover" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-md overflow-x-clip px-3">
@@ -287,7 +269,7 @@ function BlackjackPage() {
 
           <div className="bj-photo-table relative top-8 aspect-[3/2] w-full overflow-hidden">
             <img
-              src={blackjackTableAsset.url}
+              src={blackjackTable}
               alt="Cobra Blackjack casino table with six player seats"
               className="bj-table-image absolute inset-0 h-full w-full object-cover"
             />
@@ -475,21 +457,8 @@ function BlackjackPage() {
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border/30 bg-card/40 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-md items-stretch">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] text-muted-foreground"
-              activeProps={{ className: "text-gold" }}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="leading-none">{label}</span>
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <NavBar />
+
     </div>
   );
 }

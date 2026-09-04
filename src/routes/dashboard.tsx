@@ -7,7 +7,6 @@ import durakImg from "@/assets/game-durak.jpg";
 import slotsImg from "@/assets/game-slots.jpg";
 import aviatorImg from "@/assets/game-aviator.jpg";
 import rouletteImg from "@/assets/game-roulette.jpg";
-import homeBg from "@/assets/home-bg.jpg";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -80,7 +79,7 @@ function DashboardPage() {
   if (!ready || !user) return null;
 
   return (
-    <AppShell backgroundImage={homeBg}>
+    <AppShell>
       <section className="rounded-2xl border border-gold/25 bg-card/40 p-3 backdrop-blur-sm">
         <div className="flex items-center justify-center gap-2">
           <span className="h-px w-8 bg-gradient-to-r from-transparent to-gold/70" />
