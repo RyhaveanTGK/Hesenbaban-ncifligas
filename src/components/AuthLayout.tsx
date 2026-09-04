@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import bg from "@/assets/poker-bg.jpg";
+import bg from "@/assets/app-bg.png";
 import logo from "@/assets/cobra-logo.png";
 
 export function AuthLayout({
@@ -20,8 +20,6 @@ export function AuthLayout({
       className="relative min-h-screen w-full bg-background bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: `url(${bg})` }}
     >
-      <div className="absolute inset-0 bg-background/55" />
-
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-10 pt-6">
         {showBack && (
           <Link
