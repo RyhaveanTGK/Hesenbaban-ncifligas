@@ -16,7 +16,7 @@ type TgUpdate = {
   };
 };
 
-export const Route = createFileRoute("/api/public/telegram/webhook")({
+export const Route = createFileRoute("/api/public/telegram/webhook-handler")({
   server: {
     handlers: {
       POST: async ({ request }) => {
