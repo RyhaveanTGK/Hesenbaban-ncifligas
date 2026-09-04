@@ -438,3 +438,37 @@ html[data-animations="off"] *::after {
   .nav-outline-run { animation: none; }
 }
 
+/* Bottom nav: light blur behind the artwork, no dark panel */
+.nav-blur {
+  backdrop-filter: blur(10px) saturate(1.05);
+}
+
+/* Bottom nav: per-item left-to-right gold glint */
+@keyframes nav-shine-run {
+  0% { background-position: 180% 0; opacity: 0; }
+  12% { opacity: 1; }
+  55% { opacity: 1; }
+  70%, 100% { background-position: -80% 0; opacity: 0; }
+}
+
+.nav-shine {
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 38%,
+    color-mix(in oklab, var(--gold-2) 55%, transparent) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: plus-lighter;
+  opacity: 0;
+  animation: nav-shine-run 3.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-shine { animation: none; }
+}
+
+
