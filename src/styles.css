@@ -412,3 +412,29 @@ html[data-animations="off"] *::after {
     animation: none;
   }
 }
+
+/* Bottom nav: thin gold line looping around the rounded rectangle */
+@keyframes nav-outline-run {
+  to { stroke-dashoffset: -1000; }
+}
+
+.nav-outline-run {
+  stroke-dasharray: 130 870;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 4px color-mix(in oklab, var(--gold-2) 70%, transparent));
+  animation: nav-outline-run 3.6s linear infinite;
+}
+
+/* Bottom nav: blurred glass instead of a solid black panel */
+.nav-glass {
+  pointer-events: none;
+  background: color-mix(in oklab, var(--background) 22%, transparent);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-outline-run { animation: none; }
+}
+
