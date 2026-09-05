@@ -473,19 +473,40 @@ html[data-animations="off"] *::after {
 
 
 
-/* ---------------- Cobra Slots (25 lines) ---------------- */
+/* ---------------- Cobra Slots 25 ---------------- */
 .slot-page {
+  position: relative;
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 10px 8px calc(16px + env(safe-area-inset-bottom));
-  background:
-    radial-gradient(120% 80% at 50% 0%, oklch(0.32 0.11 150 / 0.55), transparent 60%),
-    radial-gradient(80% 60% at 50% 100%, oklch(0.25 0.09 150 / 0.5), transparent 70%),
-    oklch(0.11 0.02 150);
+  background-color: oklch(0.11 0.02 150);
   color: var(--foreground);
 }
+/* clover forest background artwork */
+.slot-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("./assets/slots/slots-bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.slot-page::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% 0%, oklch(0.32 0.11 150 / 0.35), transparent 60%),
+    oklch(0.11 0.02 150 / 0.35);
+}
+.slot-page > * { position: relative; z-index: 1; }
 .slot-stage { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
 
 .slot-frame {
@@ -738,4 +759,97 @@ html[data-animations="off"] *::after {
 
 @media (prefers-reduced-motion: reduce) {
   .slot-logo-shine, .slot-cell.is-win img, .slot-btn-auto.is-on { animation: none; }
+}
+
+
+/* ---------------- Clover (Wild) burning expand animation ---------------- */
+.slot-reel.is-wild-reel {
+  z-index: 4;
+  box-shadow:
+    0 0 18px oklch(0.85 0.2 145 / 0.85),
+    inset 0 0 26px oklch(0.75 0.2 120 / 0.55);
+  animation: slot-wild-reel-open 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes slot-wild-reel-open {
+  0% { transform: scaleY(0.72); filter: brightness(2.1); }
+  60% { transform: scaleY(1.04); filter: brightness(1.4); }
+  100% { transform: scaleY(1); filter: brightness(1); }
+}
+.slot-reel.is-wild-reel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, oklch(0.95 0.19 105 / 0.35), transparent 45%),
+    linear-gradient(0deg, oklch(0.72 0.24 40 / 0.45), transparent 55%);
+  mix-blend-mode: screen;
+  animation: slot-wild-heat 1.1s ease-in-out infinite alternate;
+}
+@keyframes slot-wild-heat {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+.slot-cell.is-wild-open img {
+  animation: slot-wild-pop 0.6s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  filter:
+    drop-shadow(0 0 10px oklch(0.95 0.18 100))
+    drop-shadow(0 0 24px oklch(0.75 0.24 45 / 0.9));
+}
+@keyframes slot-wild-pop {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  55% { transform: scale(1.28) rotate(8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* rising flames over the expanded wild reel */
+.slot-wild-flames { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.slot-wild-flames i {
+  position: absolute;
+  bottom: -12%;
+  width: 16%;
+  height: 26%;
+  left: calc(var(--i) * 11% - 2%);
+  border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
+  background: radial-gradient(
+    circle at 50% 78%,
+    oklch(0.98 0.06 100) 0%,
+    oklch(0.9 0.2 95) 32%,
+    oklch(0.72 0.23 45) 62%,
+    oklch(0.55 0.2 30 / 0) 100%
+  );
+  filter: blur(1px);
+  mix-blend-mode: screen;
+  animation: slot-flame-rise 1.15s ease-out infinite;
+  animation-delay: calc(var(--i) * 90ms);
+}
+@keyframes slot-flame-rise {
+  0% { transform: translateY(20%) scaleY(0.6) scaleX(1); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateY(-320%) scaleY(1.5) scaleX(0.55); opacity: 0; }
+}
+.slot-wild-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: clamp(10px, 2.6vw, 16px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: oklch(0.98 0.07 100);
+  text-shadow: 0 0 10px oklch(0.9 0.2 95), 0 0 22px oklch(0.72 0.24 45);
+  animation: slot-wild-label 0.9s ease-in-out infinite alternate;
+}
+@keyframes slot-wild-label {
+  from { opacity: 0.65; transform: translate(-50%, -50%) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-reel.is-wild-reel,
+  .slot-cell.is-wild-open img,
+  .slot-wild-flames i,
+  .slot-wild-label { animation: none; }
 }
