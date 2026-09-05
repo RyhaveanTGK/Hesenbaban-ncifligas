@@ -11,6 +11,7 @@ import {
   BET_STEPS,
   LINES,
   PAYTABLE,
+  TOTAL_BET_PAYTABLE,
   REELS,
   ROWS,
   DOLLAR_PAY,
@@ -32,22 +33,23 @@ import plumImg from "@/assets/slots/plum.png";
 import orangeImg from "@/assets/slots/orange.png";
 import lemonImg from "@/assets/slots/lemon.png";
 import cherryImg from "@/assets/slots/cherry.png";
+import watermelonImg from "@/assets/slots/watermelon.png";
 import cloverImg from "@/assets/slots/clover.png";
 
 export const Route = createFileRoute("/slots")({
   head: () => ({
     meta: [
-      { title: "Cobra Slots 5 — 20 Burning Hot" },
+      { title: "Cobra Slots 25 — 20 Burning Hot" },
       {
         name: "description",
         content:
-          "Cobra Slots 5: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
+          "Cobra Slots 25: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
       },
-      { property: "og:title", content: "Cobra Slots 5 — 20 Burning Hot" },
+      { property: "og:title", content: "Cobra Slots 25 — 20 Burning Hot" },
       {
         property: "og:description",
         content:
-          "Cobra Slots 5: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
+          "Cobra Slots 25: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -66,6 +68,7 @@ const IMG: Record<SymbolId, string> = {
   orange: orangeImg,
   lemon: lemonImg,
   cherry: cherryImg,
+  watermelon: watermelonImg,
   clover: cloverImg,
 };
 
@@ -79,11 +82,12 @@ const NAMES: Record<SymbolId, string> = {
   orange: "Orange",
   lemon: "Lemon",
   cherry: "Cherry",
+  watermelon: "Watermelon",
   clover: "Clover (Wild)",
 };
 
 const INITIAL_GRID: Grid = [
-  ["seven", "grapes", "lemon"],
+  ["seven", "watermelon", "lemon"],
   ["bell", "orange", "dollar"],
   ["plum", "cherry", "cherry"],
   ["star", "seven", "clover"],
@@ -301,6 +305,11 @@ function SlotsPage() {
     return set;
   }, [result]);
 
+  const expandedReels = useMemo(
+    () => new Set<number>(result?.expandedReels ?? []),
+    [result],
+  );
+
   const scatterCells = useMemo(() => {
     const set = new Set<string>();
     result?.scatters.forEach((sc) => sc.cells.forEach(([r, c]) => set.add(`${r}-${c}`)));
@@ -351,7 +360,20 @@ function SlotsPage() {
             {grid.map((col, reel) => {
               const spinning = spinningReels[reel];
               return (
-                <div key={reel} className={`slot-reel ${spinning ? "is-spinning" : "is-stopped"}`}>
+                <div
+                  key={reel}
+                  className={`slot-reel ${spinning ? "is-spinning" : "is-stopped"} ${
+                    !spinning && expandedReels.has(reel) ? "is-wild-reel" : ""
+                  }`}
+                >
+                  {!spinning && expandedReels.has(reel) && (
+                    <span className="slot-wild-flames" aria-hidden="true">
+                      {Array.from({ length: 9 }, (_, i) => (
+                        <i key={i} style={{ ["--i" as string]: i }} />
+                      ))}
+                      <b className="slot-wild-label">WILD</b>
+                    </span>
+                  )}
                   {spinning ? (
                     <div className="slot-strip">
                       {(strips[reel] ?? []).concat(strips[reel] ?? []).map((s, i) => (
@@ -370,8 +392,10 @@ function SlotsPage() {
                           key={key}
                           className={`slot-cell slot-cell-land ${win ? "is-win" : ""} ${
                             isBurst ? "is-burst" : ""
-                          } ${result && !win ? "is-dim" : ""}`}
-                          style={{ animationDelay: `${row * 40}ms` }}
+                          } ${expandedReels.has(reel) ? "is-wild-open" : ""} ${
+                            result && !win && !expandedReels.has(reel) ? "is-dim" : ""
+                          }`}
+                          style={{ animationDelay: `${row * (expandedReels.has(reel) ? 110 : 40)}ms` }}
                         >
                           <img src={IMG[s]} alt={NAMES[s]} draggable={false} />
                           {isBurst && (
@@ -517,7 +541,7 @@ function SlotsPage() {
         <div className="slot-modal-backdrop" role="dialog" aria-modal="true" aria-label="Game info">
           <div className="slot-modal">
             <header>
-              <h2 className="font-display text-gold-gradient">COBRA SLOTS 5 — 20 BURNING HOT</h2>
+              <h2 className="font-display text-gold-gradient">COBRA SLOTS 25 — 20 BURNING HOT</h2>
               <button type="button" aria-label="Close" onClick={() => setInfoOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
@@ -561,8 +585,8 @@ function SlotsPage() {
                       <td>
                         <img src={IMG[s]} alt={NAMES[s]} /> {NAMES[s]}
                       </td>
-                      {PAYTABLE[s].map((m, i) => (
-                        <td key={i}>{m ? `${m}×` : "—"}</td>
+                      {TOTAL_BET_PAYTABLE[s].map((m, i) => (
+                        <td key={i}>{m ? `${m}× bet` : "—"}</td>
                       ))}
                     </tr>
                   ))}
@@ -588,11 +612,17 @@ function SlotsPage() {
                     <td>
                       <img src={IMG.clover} alt="Clover" /> Clover (Wild)
                     </td>
-                    <td colSpan={4}>Reels 2-3-4 · substitutes all except Scatters · expands</td>
+                    <td colSpan={4}>
+                      Reels 2-3-4 · substitutes all except Scatters · expands over the whole reel
+                      with a burning animation
+                    </td>
                   </tr>
                 </tbody>
               </table>
-              <p className="slot-modal-note">Line multipliers apply to the line bet (total bet ÷ 20).</p>
+              <p className="slot-modal-note">
+                All multipliers shown above apply to the TOTAL bet (line pays are the same win
+                expressed as line bet × 20).
+              </p>
             </div>
           </div>
         </div>
