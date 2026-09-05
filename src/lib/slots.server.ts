@@ -4,10 +4,40 @@
  * The reels are spun on the server, the bet is debited and the win credited
  * to the real user balance in one call. The client only animates the result.
  */
-import { BET_MAX, BET_MIN, BET_STEPS, evaluate, spinReels, round2, type SpinResult } from "./slots-engine";
+import {
+  BET_MAX,
+  BET_MIN,
+  BET_STEPS,
+  REELS,
+  SYMBOLS,
+  evaluate,
+  spinReels,
+  round2,
+  type SpinResult,
+  type SymbolId,
+} from "./slots-engine";
+
+/** Reel strips shown while the reels are spinning — decided on the server.
+ *  Every symbol appears at least once on every reel, in random order, so no
+ *  symbol can stay invisible during the spin animation. */
+const STRIP_LEN = 14;
+function buildStrips(): SymbolId[][] {
+  return Array.from({ length: REELS }, () => {
+    const pool = [...SYMBOLS];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+    }
+    const strip = [...pool];
+    while (strip.length < STRIP_LEN) {
+      strip.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!);
+    }
+    return strip.slice(0, STRIP_LEN);
+  });
+}
 
 export type SpinResponse =
-  | { ok: true; result: SpinResult; bet: number; balance: number }
+  | { ok: true; result: SpinResult; strips: SymbolId[][]; bet: number; balance: number }
   | { ok: false; error: string };
 
 export async function spin(userId: string, requestedBet: number): Promise<SpinResponse> {
@@ -32,5 +62,5 @@ export async function spin(userId: string, requestedBet: number): Promise<SpinRe
     const credited = await store.addBalance(userId, result.totalWin);
     balance = credited?.chipBalance ?? balance + result.totalWin;
   }
-  return { ok: true, result, bet, balance: round2(balance) };
+  return { ok: true, result, strips: buildStrips(), bet, balance: round2(balance) };
 }
