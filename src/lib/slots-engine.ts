@@ -340,9 +340,10 @@ export function round2(n: number): number {
 
 /** Bet ladder requested by the operator (GEL) — this is the TOTAL bet. */
 export const BET_STEPS = [
-  0.2, 0.4, 0.6, 1, 2, 3, 4, 5, 10, 20, 40, 60, 80, 100,
+  0.2, 0.4, 0.6, 0.8, 1, 1.6, 2, 2.6, 3, 3.6, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 40,
+  50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
 ] as const;
 export const BET_MIN = BET_STEPS[0];
-export const BET_MAX = 100;
+export const BET_MAX = 1000;
 /** Line bet = total bet / 20. */
 export const lineBetOf = (totalBet: number) => round2(totalBet / LINES);
