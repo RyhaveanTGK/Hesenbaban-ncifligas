@@ -1,19 +1,28 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Info, Minus, Plus, RefreshCw, Volume2, VolumeX, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Coins,
+  Info,
+  Infinity as InfinityIcon,
+  PlayCircle,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+  X,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuthUser } from "@/lib/session";
 import { playUiSound, useGameSettings } from "@/lib/game-settings";
 import { DepositDialog } from "@/components/DepositDialog";
 import { getSlotsBalance, spinSlots } from "@/lib/slots.functions";
 import {
-  BET_MAX,
   BET_STEPS,
   LINES,
   PAYTABLE,
   TOTAL_BET_PAYTABLE,
   REELS,
-  ROWS,
   DOLLAR_PAY,
   STAR_PAY,
   SYMBOLS,
@@ -39,17 +48,17 @@ import cloverImg from "@/assets/slots/clover.png";
 export const Route = createFileRoute("/slots")({
   head: () => ({
     meta: [
-      { title: "Cobra Slots 25 — 20 Burning Hot" },
+      { title: "Cobra Slots 5 — 20 Burning Hot" },
       {
         name: "description",
         content:
-          "Cobra Slots 25: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
+          "Cobra Slots 5: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
       },
-      { property: "og:title", content: "Cobra Slots 25 — 20 Burning Hot" },
+      { property: "og:title", content: "Cobra Slots 5 — 20 Burning Hot" },
       {
         property: "og:description",
         content:
-          "Cobra Slots 25: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
+          "Cobra Slots 5: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -94,12 +103,22 @@ const INITIAL_GRID: Grid = [
   ["star", "lemon", "grapes"],
 ];
 
-const SPIN_BASE_MS = 900;
-const SPIN_STAGGER_MS = 260;
+/** Total spin animation ≈ 3 s (last reel stops at BASE + 4 × STAGGER). */
+const SPIN_BASE_MS = 2280;
+const SPIN_STAGGER_MS = 180;
+/** Turbo spin — much shorter. */
+const TURBO_BASE_MS = 420;
+const TURBO_STAGGER_MS = 70;
 const STRIP_LEN = 14;
+/** Delay before the Clover Wild expands over its reel. */
+const WILD_EXPAND_MS = 520;
+
+const AUTO_COUNTS = [10, 20, 50, 100] as const;
 
 const randomSymbol = (): SymbolId => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!;
 const fmt = (n: number) => n.toFixed(2);
+const betLabel = (n: number) =>
+  n >= 100 ? new Intl.NumberFormat("en-US").format(n).replace(",", " ") : n.toFixed(2);
 
 /* -------------------------------------------------------------- win counter */
 
@@ -131,27 +150,39 @@ function SlotsPage() {
   const { settings, update } = useGameSettings();
 
   const [balance, setBalance] = useState(0);
-  const [betIdx, setBetIdx] = useState(3); // 1.00 GEL
+  const [betIdx, setBetIdx] = useState(0); // 0.20 GEL
   const [betOpen, setBetOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(INITIAL_GRID);
   const [spinningReels, setSpinningReels] = useState<boolean[]>(Array(REELS).fill(false));
   const [result, setResult] = useState<SpinResult | null>(null);
+  const [wildReels, setWildReels] = useState<number[]>([]);
   const [showWin, setShowWin] = useState(0);
+  const [lastWin, setLastWin] = useState(0);
   const [winKey, setWinKey] = useState(0);
   const [burst, setBurst] = useState(false);
   const [busy, setBusy] = useState(false);
   const [auto, setAuto] = useState(false);
+  const [autoLeft, setAutoLeft] = useState(0);
+  const [turbo, setTurbo] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [strips, setStrips] = useState<SymbolId[][]>([]);
+  const [message, setMessage] = useState("");
 
   const autoRef = useRef(false);
+  const autoLeftRef = useRef(0);
   const busyRef = useRef(false);
+  const turboRef = useRef(false);
   const holdTimer = useRef<number | null>(null);
   const heldRef = useRef(false);
 
   const bet = BET_STEPS[betIdx]!;
   const displayedWin = useCountUp(showWin);
+
+  useEffect(() => {
+    turboRef.current = turbo;
+  }, [turbo]);
 
   useEffect(() => {
     if (user) setBalance(Number(user.chipBalance) || 0);
@@ -174,6 +205,13 @@ function SlotsPage() {
     [settings.soundEffects],
   );
 
+  const stopAuto = useCallback(() => {
+    autoRef.current = false;
+    autoLeftRef.current = 0;
+    setAuto(false);
+    setAutoLeft(0);
+  }, []);
+
   /* ------------------------------------------------------------- one spin */
   const doSpin = useCallback(
     async (wager: number): Promise<boolean> => {
@@ -181,12 +219,16 @@ function SlotsPage() {
       busyRef.current = true;
       setBusy(true);
       setResult(null);
+      setWildReels([]);
       setBurst(false);
       setShowWin(0);
       setBetOpen(false);
+      setAutoOpen(false);
+      setMessage("");
 
       const res = await spinSlots({ data: { userId: user.id, bet: wager } });
       if (!res.ok) {
+        setMessage(res.error.toUpperCase());
         toast.error(res.error);
         busyRef.current = false;
         setBusy(false);
@@ -201,12 +243,16 @@ function SlotsPage() {
       setSpinningReels(Array(REELS).fill(true));
       sound(420, 0.12);
 
+      const base = turboRef.current ? TURBO_BASE_MS : SPIN_BASE_MS;
+      const stagger = turboRef.current ? TURBO_STAGGER_MS : SPIN_STAGGER_MS;
+
       await new Promise<void>((resolve) => {
         for (let reel = 0; reel < REELS; reel++) {
           window.setTimeout(() => {
+            // land the PRE-expansion grid, so a single Clover is shown first
             setGrid((g) => {
               const next = g.map((c) => [...c]) as Grid;
-              next[reel] = [...res.result.grid[reel]!];
+              next[reel] = [...res.result.baseGrid[reel]!];
               return next;
             });
             setSpinningReels((s) => {
@@ -216,15 +262,26 @@ function SlotsPage() {
             });
             sound(300 + reel * 40, 0.05);
             if (reel === REELS - 1) resolve();
-          }, SPIN_BASE_MS + reel * SPIN_STAGGER_MS);
+          }, base + reel * stagger);
         }
       });
+
+      // the Clover Wild now grows over its whole reel, animated
+      if (res.result.expandedReels.length > 0) {
+        await new Promise((r) => window.setTimeout(r, WILD_EXPAND_MS));
+        setGrid(res.result.grid.map((c) => [...c]) as Grid);
+        setWildReels([...res.result.expandedReels]);
+        sound(560, 0.16);
+        await new Promise((r) => window.setTimeout(r, 620));
+      }
 
       setResult(res.result);
       if (res.result.totalWin > 0) {
         setWinKey((k) => k + 1);
         setShowWin(res.result.totalWin);
+        setLastWin(res.result.totalWin);
         setBalance(res.balance);
+        setMessage(`YOU WON ${fmt(res.result.totalWin)} GEL`);
         if (res.result.scatter) {
           setBurst(true);
           [0, 90, 180, 300, 420].forEach((d, i) =>
@@ -233,10 +290,13 @@ function SlotsPage() {
         } else {
           [0, 100, 200].forEach((d, i) => window.setTimeout(() => sound(660 + i * 110, 0.08), d));
         }
-        await new Promise((r) => window.setTimeout(r, res.result.scatter ? 2200 : 1400));
+        await new Promise((r) =>
+          window.setTimeout(r, turboRef.current ? 700 : res.result.scatter ? 2200 : 1400),
+        );
       } else {
+        setLastWin(0);
         setBalance(res.balance);
-        await new Promise((r) => window.setTimeout(r, 250));
+        await new Promise((r) => window.setTimeout(r, turboRef.current ? 120 : 250));
       }
 
       busyRef.current = false;
@@ -255,10 +315,18 @@ function SlotsPage() {
       while (!cancelled && autoRef.current) {
         const ok = await doSpin(BET_STEPS[betIdx]!);
         if (!ok) {
-          setAuto(false);
+          stopAuto();
           break;
         }
-        await new Promise((r) => window.setTimeout(r, 500));
+        if (autoLeftRef.current > 0) {
+          autoLeftRef.current -= 1;
+          setAutoLeft(autoLeftRef.current);
+          if (autoLeftRef.current === 0) {
+            stopAuto();
+            break;
+          }
+        }
+        await new Promise((r) => window.setTimeout(r, turboRef.current ? 150 : 500));
       }
     })();
     return () => {
@@ -267,35 +335,38 @@ function SlotsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto]);
 
+  const startAuto = (count: number | "infinite") => {
+    sound(620, 0.08);
+    setAutoOpen(false);
+    autoLeftRef.current = count === "infinite" ? 0 : count;
+    setAutoLeft(count === "infinite" ? 0 : count);
+    setAuto(true);
+  };
+
   /* -------------------------------------------------- spin button gestures */
   const onSpinDown = () => {
     heldRef.current = false;
     holdTimer.current = window.setTimeout(() => {
       heldRef.current = true;
-      sound(520, 0.1);
-      setAuto(true);
-    }, 650);
+      sound(760, 0.1);
+      setTurbo(true);
+      turboRef.current = true;
+      if (!busyRef.current) void doSpin(bet);
+    }, 500);
   };
   const onSpinUp = () => {
     if (holdTimer.current) window.clearTimeout(holdTimer.current);
     holdTimer.current = null;
-    if (heldRef.current) return;
+    if (heldRef.current) {
+      setTurbo(false);
+      turboRef.current = false;
+      return;
+    }
     if (auto) {
-      setAuto(false);
+      stopAuto();
       return;
     }
     void doSpin(bet);
-  };
-
-  const changeBet = (dir: 1 | -1) => {
-    sound(dir > 0 ? 720 : 560, 0.05);
-    setBetIdx((i) => Math.max(0, Math.min(BET_STEPS.length - 1, i + dir)));
-  };
-
-  const maxBet = () => {
-    if (busy) return;
-    sound(800, 0.1);
-    void doSpin(BET_MAX); // server wagers the whole balance (capped at 100)
   };
 
   const winningCells = useMemo(() => {
@@ -305,10 +376,7 @@ function SlotsPage() {
     return set;
   }, [result]);
 
-  const expandedReels = useMemo(
-    () => new Set<number>(result?.expandedReels ?? []),
-    [result],
-  );
+  const expandedReels = useMemo(() => new Set<number>(wildReels), [wildReels]);
 
   const scatterCells = useMemo(() => {
     const set = new Set<string>();
@@ -321,52 +389,48 @@ function SlotsPage() {
   return (
     <main className="slot-page">
       <div className="slot-stage">
+        {/* --------------------------------------------------------- top bar */}
+        <div className="slot-topbar">
+          <button
+            type="button"
+            aria-label="Exit game"
+            className="slot-round-sm"
+            onClick={() => {
+              stopAuto();
+              void navigate({ to: "/dashboard" });
+            }}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span className="slot-title">COBRA SLOTS 5</span>
+          <button
+            type="button"
+            aria-label="Deposit"
+            className="slot-round-sm slot-round-coin"
+            onClick={() => setDepositOpen(true)}
+          >
+            <Coins className="h-5 w-5" />
+          </button>
+        </div>
+
         {/* ------------------------------------------------ frame + reels */}
         <section className="slot-frame" aria-label="Cobra Slots reels">
           <img src={frameImg} alt="" className="slot-frame-img" draggable={false} />
           <div className="slot-logo-shine" aria-hidden="true" />
 
-          {/* back */}
-          <button
-            type="button"
-            aria-label="Exit game"
-            onClick={() => {
-              setAuto(false);
-              void navigate({ to: "/dashboard" });
-            }}
-            className="slot-corner slot-corner-left"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-
-          {/* balance */}
-          <div className="slot-corner slot-corner-right slot-balance">
-            <span className="slot-coin" aria-hidden="true" />
-            <span className="slot-balance-value">
-              {fmt(balance)} <small>GEL</small>
-            </span>
-            <button
-              type="button"
-              aria-label="Deposit"
-              onClick={() => setDepositOpen(true)}
-              className="slot-plus"
-            >
-              <Plus className="h-4 w-4" strokeWidth={3} />
-            </button>
-          </div>
-
           {/* reels */}
           <div className="slot-reels">
             {grid.map((col, reel) => {
               const spinning = spinningReels[reel];
+              const wildReel = !spinning && expandedReels.has(reel);
               return (
                 <div
                   key={reel}
                   className={`slot-reel ${spinning ? "is-spinning" : "is-stopped"} ${
-                    !spinning && expandedReels.has(reel) ? "is-wild-reel" : ""
+                    wildReel ? "is-wild-reel" : ""
                   }`}
                 >
-                  {!spinning && expandedReels.has(reel) && (
+                  {wildReel && (
                     <span className="slot-wild-flames" aria-hidden="true">
                       {Array.from({ length: 9 }, (_, i) => (
                         <i key={i} style={{ ["--i" as string]: i }} />
@@ -375,7 +439,7 @@ function SlotsPage() {
                     </span>
                   )}
                   {spinning ? (
-                    <div className="slot-strip">
+                    <div className={`slot-strip ${turbo ? "is-turbo" : ""}`}>
                       {(strips[reel] ?? []).concat(strips[reel] ?? []).map((s, i) => (
                         <div key={i} className="slot-cell">
                           <img src={IMG[s]} alt="" draggable={false} />
@@ -392,10 +456,10 @@ function SlotsPage() {
                           key={key}
                           className={`slot-cell slot-cell-land ${win ? "is-win" : ""} ${
                             isBurst ? "is-burst" : ""
-                          } ${expandedReels.has(reel) ? "is-wild-open" : ""} ${
-                            result && !win && !expandedReels.has(reel) ? "is-dim" : ""
+                          } ${wildReel ? "is-wild-open" : ""} ${
+                            result && !win && !wildReel ? "is-dim" : ""
                           }`}
-                          style={{ animationDelay: `${row * (expandedReels.has(reel) ? 110 : 40)}ms` }}
+                          style={{ animationDelay: `${row * (wildReel ? 110 : 40)}ms` }}
                         >
                           <img src={IMG[s]} alt={NAMES[s]} draggable={false} />
                           {isBurst && (
@@ -417,148 +481,218 @@ function SlotsPage() {
           {burst && (
             <div className="slot-burst-banner" role="status">
               <span>{result?.scatter?.symbol === "star" ? "STAR SCATTER!" : "DOLLAR SCATTER!"}</span>
-              <b>
-                +{fmt(result?.scatters.reduce((a, w) => a + w.amount, 0) ?? 0)} GEL
-              </b>
+              <b>+{fmt(result?.scatters.reduce((a, w) => a + w.amount, 0) ?? 0)} GEL</b>
             </div>
           )}
         </section>
 
         {/* ------------------------------------------------------ controls */}
-        <section className="slot-controls" aria-label="Controls">
-          <button
-            type="button"
-            className="slot-btn slot-btn-sq"
-            aria-label="Game info"
-            onClick={() => setInfoOpen(true)}
-          >
-            <Info className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            className="slot-btn slot-btn-sq"
-            aria-label={settings.soundEffects ? "Mute" : "Unmute"}
-            onClick={() => update({ soundEffects: !settings.soundEffects })}
-          >
-            {settings.soundEffects ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-          </button>
+        <section className="slot-hud" aria-label="Controls">
+          <div className="slot-hud-top">
+            <div className="slot-hud-stat">
+              <span className="slot-hud-key">BALANCE:</span>
+              <b>{fmt(balance)}</b>
+              <span className="slot-hud-cur">GEL</span>
+            </div>
+            <div className="slot-hud-msg" role="status" aria-live="polite">
+              {busy ? "" : message}
+            </div>
+            <div className="slot-hud-stat slot-hud-stat-right">
+              <span className="slot-hud-key">LAST WIN:</span>
+              <b key={winKey} className={showWin > 0 ? "slot-win-rise" : ""}>
+                {fmt(showWin > 0 ? displayedWin : lastWin)}
+              </b>
+              <span className="slot-hud-cur">GEL</span>
+            </div>
+          </div>
 
-          <div className="slot-panel-wrap">
+          {/* horizontally scrollable bet ladder */}
+          <div className="slot-bet-rail" role="group" aria-label="Bet">
+            {BET_STEPS.map((s, i) => (
+              <button
+                key={s}
+                type="button"
+                className={`slot-chip ${i === betIdx ? "is-active" : ""}`}
+                disabled={busy}
+                onClick={() => {
+                  sound(660, 0.05);
+                  setBetIdx(i);
+                }}
+              >
+                <span className="slot-chip-cur">GEL</span>
+                <span className="slot-chip-val">{betLabel(s)}</span>
+                <span className="slot-chip-bet">BET</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="slot-actions">
+            <div className="slot-action-slot">
+              <button
+                type="button"
+                className={`slot-round slot-round-auto ${auto ? "is-on" : ""}`}
+                aria-label="Auto play"
+                onClick={() => {
+                  sound(520, 0.06);
+                  if (auto) {
+                    stopAuto();
+                    return;
+                  }
+                  setAutoOpen((o) => !o);
+                }}
+              >
+                <PlayCircle className="h-7 w-7" />
+                {autoLeft > 0 && <i className="slot-auto-count">{autoLeft}</i>}
+              </button>
+
+              {autoOpen && (
+                <div className="slot-auto-panel" role="group" aria-label="Auto play options">
+                  {AUTO_COUNTS.map((c) => (
+                    <button key={c} type="button" onClick={() => startAuto(c)}>
+                      {c}
+                    </button>
+                  ))}
+                  <button type="button" aria-label="Infinite auto play" onClick={() => startAuto("infinite")}>
+                    <InfinityIcon className="h-6 w-6" strokeWidth={3} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Turbo spin"
+                    className={turbo ? "is-on" : ""}
+                    onClick={() => {
+                      sound(780, 0.08);
+                      setTurbo((t) => !t);
+                    }}
+                  >
+                    <Zap className="h-6 w-6" strokeWidth={3} />
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
-              className={`slot-panel ${betOpen ? "is-open" : ""}`}
-              onClick={() => {
-                sound(600, 0.04);
-                setBetOpen((o) => !o);
+              className={`slot-spin ${busy ? "is-busy" : ""} ${auto ? "is-auto" : ""}`}
+              onPointerDown={onSpinDown}
+              onPointerUp={onSpinUp}
+              onPointerLeave={() => {
+                if (holdTimer.current) window.clearTimeout(holdTimer.current);
+                holdTimer.current = null;
               }}
-              disabled={busy}
+              onContextMenu={(e) => e.preventDefault()}
+              disabled={busy && !auto}
+              aria-label={auto ? "Stop auto play" : "Spin"}
             >
-              <span className="slot-panel-label">TOTAL BET</span>
-              <span className="slot-panel-value">
-                {fmt(bet)} <small>GEL</small>
-              </span>
+              <svg className="slot-spin-arc" viewBox="0 0 120 120" aria-hidden="true">
+                <path id="slot-arc-path" d="M12,68 A48,48 0 0 1 108,68" fill="none" />
+                <text>
+                  <textPath href="#slot-arc-path" startOffset="50%" textAnchor="middle" textLength="145" lengthAdjust="spacingAndGlyphs">
+                    HOLD FOR TURBO SPIN
+                  </textPath>
+                </text>
+              </svg>
+              <RefreshCw className={`slot-spin-icon ${busy ? "is-spinning" : ""}`} strokeWidth={3} />
             </button>
-            {betOpen && (
-              <div className="slot-bet-popover" role="group" aria-label="Change bet">
-                <button
-                  type="button"
-                  aria-label="Decrease bet"
-                  onClick={() => changeBet(-1)}
-                  disabled={betIdx === 0}
-                >
-                  <Minus className="h-4 w-4" strokeWidth={3} />
-                </button>
-                <span>
-                  {fmt(bet)} <small>GEL</small>
-                </span>
-                <button
-                  type="button"
-                  aria-label="Increase bet"
-                  onClick={() => changeBet(1)}
-                  disabled={betIdx === BET_STEPS.length - 1}
-                >
-                  <Plus className="h-4 w-4" strokeWidth={3} />
-                </button>
-              </div>
-            )}
+
+            <button
+              type="button"
+              className="slot-round slot-round-bet"
+              aria-label="Bet options"
+              onClick={() => {
+                sound(600, 0.05);
+                setBetOpen(true);
+              }}
+            >
+              <Coins className="h-7 w-7" />
+            </button>
           </div>
 
-          <div className="slot-panel slot-panel-win" aria-live="polite">
-            <span className="slot-panel-label">WIN</span>
-            <span key={winKey} className={`slot-panel-value ${showWin > 0 ? "slot-win-rise" : ""}`}>
-              {fmt(displayedWin)} <small>GEL</small>
-            </span>
+          <div className="slot-hud-bottom">
+            <button
+              type="button"
+              className="slot-round-sm"
+              aria-label="Game info"
+              onClick={() => setInfoOpen(true)}
+            >
+              <Info className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="slot-round-sm"
+              aria-label={settings.soundEffects ? "Mute" : "Unmute"}
+              onClick={() => update({ soundEffects: !settings.soundEffects })}
+            >
+              {settings.soundEffects ? (
+                <Volume2 className="h-5 w-5" />
+              ) : (
+                <VolumeX className="h-5 w-5" />
+              )}
+            </button>
           </div>
-
-          <button type="button" className="slot-btn slot-btn-max" onClick={maxBet} disabled={busy}>
-            MAX
-            <br />
-            BET
-          </button>
-
-          <button
-            type="button"
-            className={`slot-btn slot-btn-spin ${auto ? "is-auto" : ""} ${busy ? "is-busy" : ""}`}
-            onPointerDown={onSpinDown}
-            onPointerUp={onSpinUp}
-            onPointerLeave={() => {
-              if (holdTimer.current) window.clearTimeout(holdTimer.current);
-              holdTimer.current = null;
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-            disabled={busy && !auto}
-          >
-            <RefreshCw className={`h-6 w-6 ${busy ? "animate-spin" : ""}`} />
-            <span>
-              <b>{auto ? "STOP" : "SPIN"}</b>
-              <small>{auto ? "AUTO PLAY ON" : "HOLD FOR AUTO"}</small>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`slot-btn slot-btn-auto ${auto ? "is-on" : ""}`}
-            onClick={() => {
-              sound(auto ? 400 : 640, 0.08);
-              setAuto((a) => !a);
-            }}
-          >
-            AUTO
-            <br />
-            PLAY
-          </button>
         </section>
-
-        <footer className="slot-footer">
-          <span className="slot-footer-text">
-            {busy ? "SPINNING…" : showWin > 0 ? `YOU WON ${fmt(showWin)} GEL` : "GOOD LUCK!"}
-          </span>
-        </footer>
       </div>
+
+      {/* ------------------------------------------------------ bet options */}
+      {betOpen && (
+        <div
+          className="slot-modal-backdrop is-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bet options"
+          onClick={() => setBetOpen(false)}
+        >
+          <div className="slot-modal slot-bet-modal" onClick={(e) => e.stopPropagation()}>
+            <header>
+              <h2>BET OPTIONS</h2>
+              <button type="button" aria-label="Close" onClick={() => setBetOpen(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="slot-bet-grid">
+              {BET_STEPS.map((s, i) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`slot-chip slot-chip-lg ${i === betIdx ? "is-active" : ""}`}
+                  onClick={() => {
+                    sound(680, 0.05);
+                    setBetIdx(i);
+                    setBetOpen(false);
+                  }}
+                >
+                  <span className="slot-chip-cur">GEL</span>
+                  <span className="slot-chip-val">{betLabel(s)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------ info */}
       {infoOpen && (
         <div className="slot-modal-backdrop" role="dialog" aria-modal="true" aria-label="Game info">
           <div className="slot-modal">
             <header>
-              <h2 className="font-display text-gold-gradient">COBRA SLOTS 25 — 20 BURNING HOT</h2>
+              <h2 className="font-display text-gold-gradient">COBRA SLOTS 5 — 20 BURNING HOT</h2>
               <button type="button" aria-label="Close" onClick={() => setInfoOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
             </header>
             <div className="slot-modal-body">
               <p>
-                5 reels · 3 rows · <b>{LINES} fixed paylines</b>. All pays are for combinations of
-                a kind, left to right on adjacent reels beginning with the leftmost reel, except
-                for Scatters. Line wins are multiplied by the bet on the winning line (total bet ÷{" "}
+                5 reels · 3 rows · <b>{LINES} fixed paylines</b>. All pays are for combinations of a
+                kind, left to right on adjacent reels beginning with the leftmost reel, except for
+                Scatters. Line wins are multiplied by the bet on the winning line (total bet ÷{" "}
                 {LINES}); scatter wins are multiplied by the total bet and added to the line wins.
                 Only the highest win per line is paid; simultaneous wins on different lines are
                 added.
               </p>
               <p>
                 <b>Clover Wild</b> appears on reels 2, 3 and 4 only and substitutes for all symbols
-                except the Scatters. A Clover taking part in a winning combination expands over the
-                whole reel, and winnings are paid after the expansion.
+                except the Scatters. A Clover taking part in a winning combination lands as a single
+                symbol first and then expands over the whole reel with an animation; winnings are
+                paid after the expansion.
               </p>
               <p>
                 <b>Star Scatter</b> appears on reels 1, 3 and 5 only — 3 Stars anywhere pay{" "}
@@ -566,8 +700,9 @@ function SlotsPage() {
                 anywhere pay {DOLLAR_PAY[3]}× / {DOLLAR_PAY[4]}× / {DOLLAR_PAY[5]}× the total bet.
               </p>
               <p>
-                <b>Max Bet</b> wagers your whole balance (up to {BET_MAX} GEL). Hold <b>SPIN</b> or
-                press <b>AUTO PLAY</b> for automatic spins. Theoretical RTP ≈ 95.88%.
+                Pick your bet from the bet rail or the <b>BET OPTIONS</b> panel. Hold <b>SPIN</b> for
+                a turbo spin, or use the <b>AUTO PLAY</b> button for 10 / 20 / 50 / 100 / ∞ spins.
+                Theoretical RTP ≈ 95.88%.
               </p>
               <table className="slot-paytable">
                 <thead>
