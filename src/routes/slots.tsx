@@ -13,9 +13,11 @@ import {
   PAYTABLE,
   REELS,
   ROWS,
-  SCATTER_PAY,
+  DOLLAR_PAY,
+  STAR_PAY,
   SYMBOLS,
   type Grid,
+  type LineSymbolId,
   type SpinResult,
   type SymbolId,
 } from "@/lib/slots-engine";
@@ -35,17 +37,17 @@ import cloverImg from "@/assets/slots/clover.png";
 export const Route = createFileRoute("/slots")({
   head: () => ({
     meta: [
-      { title: "Cobra Slots — 25 Lines" },
+      { title: "Cobra Slots 5 — 20 Burning Hot" },
       {
         name: "description",
         content:
-          "Cobra Slots: 5 reels, 25 paylines, clover scatter bursts, auto play and real GEL balance.",
+          "Cobra Slots 5: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
       },
-      { property: "og:title", content: "Cobra Slots — 25 Lines" },
+      { property: "og:title", content: "Cobra Slots 5 — 20 Burning Hot" },
       {
         property: "og:description",
         content:
-          "Cobra Slots: 5 reels, 25 paylines, clover scatter bursts, auto play and real GEL balance.",
+          "Cobra Slots 5: 20 Burning Hot mechanics — 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -69,15 +71,15 @@ const IMG: Record<SymbolId, string> = {
 
 const NAMES: Record<SymbolId, string> = {
   seven: "Seven",
-  star: "Star",
-  dollar: "Dollar",
+  star: "Star (Scatter)",
+  dollar: "Dollar (Scatter)",
   bell: "Bell",
   grapes: "Grapes",
   plum: "Plum",
   orange: "Orange",
   lemon: "Lemon",
   cherry: "Cherry",
-  clover: "Clover (Scatter)",
+  clover: "Clover (Wild)",
 };
 
 const INITIAL_GRID: Grid = [
@@ -125,7 +127,7 @@ function SlotsPage() {
   const { settings, update } = useGameSettings();
 
   const [balance, setBalance] = useState(0);
-  const [betIdx, setBetIdx] = useState(6); // 1.00 GEL
+  const [betIdx, setBetIdx] = useState(3); // 1.00 GEL
   const [betOpen, setBetOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(INITIAL_GRID);
   const [spinningReels, setSpinningReels] = useState<boolean[]>(Array(REELS).fill(false));
@@ -295,13 +297,13 @@ function SlotsPage() {
   const winningCells = useMemo(() => {
     const set = new Set<string>();
     result?.lineWins.forEach((w) => w.cells.forEach(([r, c]) => set.add(`${r}-${c}`)));
-    result?.scatter?.cells.forEach(([r, c]) => set.add(`${r}-${c}`));
+    result?.scatters.forEach((sc) => sc.cells.forEach(([r, c]) => set.add(`${r}-${c}`)));
     return set;
   }, [result]);
 
   const scatterCells = useMemo(() => {
     const set = new Set<string>();
-    result?.scatter?.cells.forEach(([r, c]) => set.add(`${r}-${c}`));
+    result?.scatters.forEach((sc) => sc.cells.forEach(([r, c]) => set.add(`${r}-${c}`)));
     return set;
   }, [result]);
 
@@ -390,8 +392,10 @@ function SlotsPage() {
 
           {burst && (
             <div className="slot-burst-banner" role="status">
-              <span>CLOVER BURST!</span>
-              <b>+{fmt(result?.scatter?.amount ?? 0)} GEL</b>
+              <span>{result?.scatter?.symbol === "star" ? "STAR SCATTER!" : "DOLLAR SCATTER!"}</span>
+              <b>
+                +{fmt(result?.scatters.reduce((a, w) => a + w.amount, 0) ?? 0)} GEL
+              </b>
             </div>
           )}
         </section>
@@ -513,26 +517,33 @@ function SlotsPage() {
         <div className="slot-modal-backdrop" role="dialog" aria-modal="true" aria-label="Game info">
           <div className="slot-modal">
             <header>
-              <h2 className="font-display text-gold-gradient">COBRA SLOTS — INFO</h2>
+              <h2 className="font-display text-gold-gradient">COBRA SLOTS 5 — 20 BURNING HOT</h2>
               <button type="button" aria-label="Close" onClick={() => setInfoOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
             </header>
             <div className="slot-modal-body">
               <p>
-                5 reels · 3 rows · <b>{LINES} fixed paylines</b>. Wins pay left to right on
-                adjacent reels starting from reel 1. Only the highest win per line is paid; wins
-                on different lines are added together. Line bet = total bet ÷ {LINES}.
+                5 reels · 3 rows · <b>{LINES} fixed paylines</b>. All pays are for combinations of
+                a kind, left to right on adjacent reels beginning with the leftmost reel, except
+                for Scatters. Line wins are multiplied by the bet on the winning line (total bet ÷{" "}
+                {LINES}); scatter wins are multiplied by the total bet and added to the line wins.
+                Only the highest win per line is paid; simultaneous wins on different lines are
+                added.
               </p>
               <p>
-                <b>Clover</b> is a scatter: 3 or more anywhere on the reels trigger the Clover
-                Burst and pay {SCATTER_PAY[3]}× / {SCATTER_PAY[4]}× / {SCATTER_PAY[5]}× the total
-                bet.
+                <b>Clover Wild</b> appears on reels 2, 3 and 4 only and substitutes for all symbols
+                except the Scatters. A Clover taking part in a winning combination expands over the
+                whole reel, and winnings are paid after the expansion.
               </p>
               <p>
-                <b>Max Bet</b> wagers your whole balance (up to {BET_MAX} GEL). Hold <b>SPIN</b>{" "}
-                or press <b>AUTO PLAY</b> for automatic spins — wins are added to your balance live.
-                Theoretical RTP ≈ 95%.
+                <b>Star Scatter</b> appears on reels 1, 3 and 5 only — 3 Stars anywhere pay{" "}
+                {STAR_PAY[3]}× the total bet. <b>Dollar Scatter</b> appears on all reels — 3/4/5
+                anywhere pay {DOLLAR_PAY[3]}× / {DOLLAR_PAY[4]}× / {DOLLAR_PAY[5]}× the total bet.
+              </p>
+              <p>
+                <b>Max Bet</b> wagers your whole balance (up to {BET_MAX} GEL). Hold <b>SPIN</b> or
+                press <b>AUTO PLAY</b> for automatic spins. Theoretical RTP ≈ 95.88%.
               </p>
               <table className="slot-paytable">
                 <thead>
@@ -545,7 +556,7 @@ function SlotsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(Object.keys(PAYTABLE) as Exclude<SymbolId, "clover">[]).map((s) => (
+                  {(Object.keys(PAYTABLE) as LineSymbolId[]).map((s) => (
                     <tr key={s}>
                       <td>
                         <img src={IMG[s]} alt={NAMES[s]} /> {NAMES[s]}
@@ -557,16 +568,31 @@ function SlotsPage() {
                   ))}
                   <tr>
                     <td>
-                      <img src={IMG.clover} alt="Clover" /> Clover
+                      <img src={IMG.star} alt="Star" /> Star (Scatter)
                     </td>
                     <td>—</td>
-                    <td>{SCATTER_PAY[3]}× bet</td>
-                    <td>{SCATTER_PAY[4]}× bet</td>
-                    <td>{SCATTER_PAY[5]}× bet</td>
+                    <td>{STAR_PAY[3]}× bet</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src={IMG.dollar} alt="Dollar" /> Dollar (Scatter)
+                    </td>
+                    <td>—</td>
+                    <td>{DOLLAR_PAY[3]}× bet</td>
+                    <td>{DOLLAR_PAY[4]}× bet</td>
+                    <td>{DOLLAR_PAY[5]}× bet</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src={IMG.clover} alt="Clover" /> Clover (Wild)
+                    </td>
+                    <td colSpan={4}>Reels 2-3-4 · substitutes all except Scatters · expands</td>
                   </tr>
                 </tbody>
               </table>
-              <p className="slot-modal-note">Line multipliers apply to the line bet.</p>
+              <p className="slot-modal-note">Line multipliers apply to the line bet (total bet ÷ 20).</p>
             </div>
           </div>
         </div>
