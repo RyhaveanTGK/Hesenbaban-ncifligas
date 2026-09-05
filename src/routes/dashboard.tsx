@@ -52,7 +52,7 @@ const GAMES = [
   },
   {
     id: "slots",
-    name: "COBRA SLOTS 5",
+    name: "COBRA SLOTS 25",
     desc: "Hit the reels and win big prizes!",
     image: slotsImg,
     tint: "game-tint-green",
