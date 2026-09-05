@@ -15,6 +15,13 @@ import {
 import { toast } from "sonner";
 import { useAuthUser } from "@/lib/session";
 import { playUiSound, useGameSettings } from "@/lib/game-settings";
+import {
+  SOUND_LINE_1X3,
+  SOUND_REEL_STOP,
+  SOUND_SPIN,
+  playSound,
+  symbolWinSound,
+} from "@/lib/slots-sounds";
 import { DepositDialog } from "@/components/DepositDialog";
 import { getSlotsBalance, spinSlots } from "@/lib/slots.functions";
 import {
@@ -48,17 +55,17 @@ import cloverImg from "@/assets/slots/clover.png";
 export const Route = createFileRoute("/slots")({
   head: () => ({
     meta: [
-      { title: "Cobra Slots 5 — 20 Burning Hot" },
+      { title: "Cobra Slots 25 — 20 Burning Hot" },
       {
         name: "description",
         content:
-          "Cobra Slots 5: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
+          "Cobra Slots 25: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
       },
-      { property: "og:title", content: "Cobra Slots 5 — 20 Burning Hot" },
+      { property: "og:title", content: "Cobra Slots 25 — 20 Burning Hot" },
       {
         property: "og:description",
         content:
-          "Cobra Slots 5: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
+          "Cobra Slots 25: 5 reels, 20 fixed lines, expanding Clover Wild, Star and Dollar scatters, turbo spin and auto play.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -103,15 +110,15 @@ const INITIAL_GRID: Grid = [
   ["star", "lemon", "grapes"],
 ];
 
-/** Total spin animation ≈ 3 s (last reel stops at BASE + 4 × STAGGER). */
-const SPIN_BASE_MS = 2280;
-const SPIN_STAGGER_MS = 180;
+/** Every reel is stopped well inside 3 s (last reel: BASE + 4 × STAGGER). */
+const SPIN_BASE_MS = 1180;
+const SPIN_STAGGER_MS = 150;
 /** Turbo spin — much shorter. */
 const TURBO_BASE_MS = 420;
 const TURBO_STAGGER_MS = 70;
 const STRIP_LEN = 14;
 /** Delay before the Clover Wild expands over its reel. */
-const WILD_EXPAND_MS = 520;
+const WILD_EXPAND_MS = 260;
 
 const AUTO_COUNTS = [10, 20, 50, 100] as const;
 
@@ -170,6 +177,7 @@ function SlotsPage() {
   const [strips, setStrips] = useState<SymbolId[][]>([]);
   const [message, setMessage] = useState("");
 
+  const settingsRef = useRef(true);
   const autoRef = useRef(false);
   const autoLeftRef = useRef(0);
   const busyRef = useRef(false);
@@ -183,6 +191,10 @@ function SlotsPage() {
   useEffect(() => {
     turboRef.current = turbo;
   }, [turbo]);
+
+  useEffect(() => {
+    settingsRef.current = settings.soundEffects;
+  }, [settings.soundEffects]);
 
   useEffect(() => {
     if (user) setBalance(Number(user.chipBalance) || 0);
@@ -238,9 +250,12 @@ function SlotsPage() {
       // balance after the bet is taken (win is credited when reels stop)
       setBalance(Math.max(0, res.balance - res.result.totalWin));
       setStrips(
-        Array.from({ length: REELS }, () => Array.from({ length: STRIP_LEN }, randomSymbol)),
+        res.strips?.length === REELS
+          ? res.strips.map((s) => [...s])
+          : Array.from({ length: REELS }, () => Array.from({ length: STRIP_LEN }, randomSymbol)),
       );
       setSpinningReels(Array(REELS).fill(true));
+      playSound(SOUND_SPIN, settingsRef.current);
       sound(420, 0.12);
 
       const base = turboRef.current ? TURBO_BASE_MS : SPIN_BASE_MS;
@@ -260,6 +275,7 @@ function SlotsPage() {
               n[reel] = false;
               return n;
             });
+            playSound(SOUND_REEL_STOP, settingsRef.current);
             sound(300 + reel * 40, 0.05);
             if (reel === REELS - 1) resolve();
           }, base + reel * stagger);
@@ -272,27 +288,39 @@ function SlotsPage() {
         setGrid(res.result.grid.map((c) => [...c]) as Grid);
         setWildReels([...res.result.expandedReels]);
         sound(560, 0.16);
-        await new Promise((r) => window.setTimeout(r, 620));
+        await new Promise((r) => window.setTimeout(r, 420));
       }
 
       setResult(res.result);
       if (res.result.totalWin > 0) {
+        const soundsOn = settingsRef.current;
+        // per-symbol win sounds (3 & 4 of a kind share one file, 5 has its own)
+        const best = new Map<string, number>();
+        res.result.lineWins.forEach((w) => {
+          best.set(w.symbol, Math.max(best.get(w.symbol) ?? 0, w.count));
+        });
+        best.forEach((count, symbol) => {
+          playSound(symbolWinSound(symbol as SymbolId, count), soundsOn);
+        });
+        res.result.scatters.forEach((sc) => {
+          playSound(symbolWinSound(sc.symbol, sc.count), soundsOn);
+        });
+        // a completed 1x3 line has its own sound slot
+        if (res.result.lineWins.some((w) => w.count === 3)) {
+          playSound(SOUND_LINE_1X3, soundsOn);
+        }
+
+        const scatterOnly = res.result.lineWins.length === 0 && res.result.scatters.length > 0;
         setWinKey((k) => k + 1);
-        setShowWin(res.result.totalWin);
         setLastWin(res.result.totalWin);
         setBalance(res.balance);
-        setMessage(`YOU WON ${fmt(res.result.totalWin)} GEL`);
-        if (res.result.scatter) {
-          setBurst(true);
-          [0, 90, 180, 300, 420].forEach((d, i) =>
-            window.setTimeout(() => sound(700 + i * 120, 0.1), d),
-          );
-        } else {
+        // Star / Dollar scatter wins are paid silently — nothing is written on screen.
+        if (!scatterOnly) {
+          setShowWin(res.result.totalWin);
+          setMessage(`YOU WON ${fmt(res.result.totalWin)} GEL`);
           [0, 100, 200].forEach((d, i) => window.setTimeout(() => sound(660 + i * 110, 0.08), d));
         }
-        await new Promise((r) =>
-          window.setTimeout(r, turboRef.current ? 700 : res.result.scatter ? 2200 : 1400),
-        );
+        await new Promise((r) => window.setTimeout(r, turboRef.current ? 600 : 1200));
       } else {
         setLastWin(0);
         setBalance(res.balance);
@@ -402,7 +430,7 @@ function SlotsPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <span className="slot-title">COBRA SLOTS 5</span>
+          <span className="slot-title">COBRA SLOTS 25</span>
           <button
             type="button"
             aria-label="Deposit"
@@ -478,12 +506,6 @@ function SlotsPage() {
             })}
           </div>
 
-          {burst && (
-            <div className="slot-burst-banner" role="status">
-              <span>{result?.scatter?.symbol === "star" ? "STAR SCATTER!" : "DOLLAR SCATTER!"}</span>
-              <b>+{fmt(result?.scatters.reduce((a, w) => a + w.amount, 0) ?? 0)} GEL</b>
-            </div>
-          )}
         </section>
 
         {/* ------------------------------------------------------ controls */}
@@ -553,7 +575,7 @@ function SlotsPage() {
                     </button>
                   ))}
                   <button type="button" aria-label="Infinite auto play" onClick={() => startAuto("infinite")}>
-                    <InfinityIcon className="h-6 w-6" strokeWidth={3} />
+                    <InfinityIcon className="h-4 w-4" strokeWidth={3} />
                   </button>
                   <button
                     type="button"
@@ -564,7 +586,7 @@ function SlotsPage() {
                       setTurbo((t) => !t);
                     }}
                   >
-                    <Zap className="h-6 w-6" strokeWidth={3} />
+                    <Zap className="h-4 w-4" strokeWidth={3} />
                   </button>
                 </div>
               )}
@@ -674,7 +696,7 @@ function SlotsPage() {
         <div className="slot-modal-backdrop" role="dialog" aria-modal="true" aria-label="Game info">
           <div className="slot-modal">
             <header>
-              <h2 className="font-display text-gold-gradient">COBRA SLOTS 5 — 20 BURNING HOT</h2>
+              <h2 className="font-display text-gold-gradient">COBRA SLOTS 25 — 20 BURNING HOT</h2>
               <button type="button" aria-label="Close" onClick={() => setInfoOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
