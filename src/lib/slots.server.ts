@@ -16,13 +16,11 @@ export async function spin(userId: string, requestedBet: number): Promise<SpinRe
   const user = await store.findById(userId);
   if (!user) return { ok: false, error: "User not found." };
 
-  let bet = round2(requestedBet);
-  const isMax = bet >= BET_MAX; // "MAX BET": wager the whole balance (capped at 100)
-  if (isMax) bet = round2(Math.min(BET_MAX, user.chipBalance));
+  const bet = round2(requestedBet);
   if (!(bet >= BET_MIN && bet <= BET_MAX)) {
     return { ok: false, error: `Bet must be between ${BET_MIN} and ${BET_MAX} GEL.` };
   }
-  if (!isMax && !BET_STEPS.some((s) => Math.abs(s - bet) < 0.001)) {
+  if (!BET_STEPS.some((s) => Math.abs(s - bet) < 0.001)) {
     return { ok: false, error: "Invalid bet amount." };
   }
   if (user.chipBalance + 1e-9 < bet) return { ok: false, error: "Insufficient balance." };
