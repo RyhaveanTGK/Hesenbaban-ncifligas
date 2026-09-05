@@ -1,5 +1,5 @@
 /**
- * Cobra Slots — server authoritative spin.
+ * Cobra Slots 25 — server authoritative spin.
  *
  * The reels are spun on the server, the bet is debited and the win credited
  * to the real user balance in one call. The client only animates the result.
