@@ -116,7 +116,7 @@ function DashboardPage() {
                   {g.desc}
                 </p>
                 <Link
-                  to={g.id === "aviator" ? "/aviator" : g.id === "blackjack" ? "/blackjack" : "/rooms"}
+                  to={g.id === "aviator" ? "/aviator" : g.id === "blackjack" ? "/blackjack" : g.id === "slots" ? "/slots" : "/rooms"}
                   className="mt-2 block rounded-lg bg-gold-gradient py-2 text-center text-[10px] font-bold tracking-wide text-primary-foreground"
                 >
                   PLAY NOW
