@@ -6,7 +6,7 @@ export type { SpinResponse };
 
 export const spinSlots = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
-    z.object({ userId: z.string().min(1), bet: z.number().positive().max(100) }).parse(d),
+    z.object({ userId: z.string().min(1), bet: z.number().positive().max(1000) }).parse(d),
   )
   .handler(async ({ data }): Promise<SpinResponse> => {
     const { spin } = await import("./slots.server");
