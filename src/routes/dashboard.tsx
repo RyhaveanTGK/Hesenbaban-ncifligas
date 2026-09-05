@@ -15,13 +15,13 @@ export const Route = createFileRoute("/dashboard")({
       {
         name: "description",
         content:
-          "Pick Blackjack, Poker, Durak, Cobra Slots 5, Cobra Avivator or Cobra Rulet and start playing.",
+          "Pick Blackjack, Poker, Durak, Cobra Slots 25, Cobra Avivator or Cobra Rulet and start playing.",
       },
       { property: "og:title", content: "Home — Cobra Poker" },
       {
         property: "og:description",
         content:
-          "Pick Blackjack, Poker, Durak, Cobra Slots 5, Cobra Avivator or Cobra Rulet and start playing.",
+          "Pick Blackjack, Poker, Durak, Cobra Slots 25, Cobra Avivator or Cobra Rulet and start playing.",
       },
     ],
   }),
