@@ -20,6 +20,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RoomsRouteImport } from './routes/rooms'
+import { Route as SlotsRouteImport } from './routes/slots'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 import { Route as ApiPublicTelegramWebhookHandlerRouteImport } from './routes/api/public/telegram/webhook-handler'
 
@@ -78,6 +79,11 @@ const RoomsRoute = RoomsRouteImport.update({
   path: '/rooms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SlotsRoute = SlotsRouteImport.update({
+  id: '/slots',
+  path: '/slots',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTelegramWebhookRoute =
   ApiPublicTelegramWebhookRouteImport.update({
     id: '/api/public/telegram/webhook',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
+  '/slots': typeof SlotsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
+  '/slots': typeof SlotsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/rooms': typeof RoomsRoute
+  '/slots': typeof SlotsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/telegram/webhook-handler': typeof ApiPublicTelegramWebhookHandlerRoute
 }
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/register'
     | '/rooms'
+    | '/slots'
     | '/api/public/telegram/webhook'
     | '/api/public/telegram/webhook-handler'
   fileRoutesByTo: FileRoutesByTo
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/register'
     | '/rooms'
+    | '/slots'
     | '/api/public/telegram/webhook'
     | '/api/public/telegram/webhook-handler'
   id:
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/register'
     | '/rooms'
+    | '/slots'
     | '/api/public/telegram/webhook'
     | '/api/public/telegram/webhook-handler'
   fileRoutesById: FileRoutesById
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
   RoomsRoute: typeof RoomsRoute
+  SlotsRoute: typeof SlotsRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
   ApiPublicTelegramWebhookHandlerRoute: typeof ApiPublicTelegramWebhookHandlerRoute
 }
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoomsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/slots': {
+      id: '/slots'
+      path: '/slots'
+      fullPath: '/slots'
+      preLoaderRoute: typeof SlotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/webhook': {
       id: '/api/public/telegram/webhook'
       path: '/api/public/telegram/webhook'
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
   RoomsRoute: RoomsRoute,
+  SlotsRoute: SlotsRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
   ApiPublicTelegramWebhookHandlerRoute: ApiPublicTelegramWebhookHandlerRoute,
 }
