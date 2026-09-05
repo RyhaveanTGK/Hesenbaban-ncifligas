@@ -5,6 +5,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  BET_MAX,
+  BET_MIN,
+  BET_STEPS,
   DOLLAR_PAY,
   LINES,
   PAYLINES,
@@ -303,5 +306,50 @@ describe("random spins", () => {
     const rtp = paid / staked;
     expect(rtp).toBeGreaterThan(0.4);
     expect(rtp).toBeLessThan(1.5);
+  });
+});
+
+/* ------------------------------------------------------- bet ladder (image 2) */
+
+describe("bet ladder", () => {
+  const EXPECTED = [
+    0.2, 0.4, 0.6, 0.8, 1, 1.6, 2, 2.6, 3, 3.6, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30,
+    40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+  ];
+
+  it("offers every bet shown in the BET OPTIONS panel", () => {
+    expect([...BET_STEPS]).toEqual(EXPECTED);
+  });
+
+  it("is strictly ascending and inside the min/max limits", () => {
+    for (let i = 1; i < BET_STEPS.length; i++) {
+      expect(BET_STEPS[i]!).toBeGreaterThan(BET_STEPS[i - 1]!);
+    }
+    expect(BET_MIN).toBe(0.2);
+    expect(BET_STEPS[BET_STEPS.length - 1]).toBe(BET_MAX);
+  });
+});
+
+/* ------------------------------------ pre-expansion grid used by the animation */
+
+describe("wild expansion animation data", () => {
+  it("baseGrid keeps the single Clover so the reel can expand afterwards", () => {
+    const g = onLine1("cherry", 3);
+    g[1]![1] = WILD;
+    const r = evaluate(g, TOTAL_BET);
+
+    expect(r.expandedReels).toContain(1);
+    // pre-expansion snapshot: exactly one Clover on the winning reel
+    expect(r.baseGrid[1]!.filter((s) => s === WILD)).toHaveLength(1);
+    // post-expansion grid: the whole reel is Clover
+    expect(r.grid[1]!.every((s) => s === WILD)).toBe(true);
+    // the rest of the board is untouched
+    expect(r.baseGrid[0]).toEqual(r.grid[0]);
+  });
+
+  it("leaves baseGrid identical to grid when nothing expands", () => {
+    const r = evaluate(onLine1("cherry", 3), TOTAL_BET);
+    expect(r.expandedReels).toHaveLength(0);
+    expect(r.baseGrid).toEqual(r.grid);
   });
 });
